@@ -1,0 +1,34 @@
+<!--
+ Copyright 2023 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<resources>
+    <string name="app_name">fiRun</string>
+    <string name="continue_chip">Continue</string>
+    <string name="cancel_chip">Cancel</string>
+    <string name="permission_access_fine_location">Location</string>
+    <string name="permission_body_sensors">Body sensors</string>
+    <string name="permission_activity_recognition">Activity recognition</string>
+    <string name="permission_bluetooth_connect">Bluetooth devices</string>
+    <string name="permission_bluetooth_scan">Bluetooth scan</string>
+    <string name="notification_channel_exercise">Exercise related</string>
+    <string name="notification_channel_device">Device related</string>
+    <string name="open_app_settings">Open app settings</string>
+    <string name="permission_required">All of the following permissions are required to proceed.</string>
+    <string name="missing_permissions">Missing permissions</string>
+    <string name="pair_new">Pair new</string>
+    <string name="device_none">None</string>
+    <string name="pair_to_add">Pair to add</string>
+</resources>

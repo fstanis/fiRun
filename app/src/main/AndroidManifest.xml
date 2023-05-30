@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ Copyright 2023 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Polar SDK needs Bluetooth scan permission to search for BLE devices. Polar BLE SDK doesn't use the scan
+  to decide the location so "neverForLocation" permission flag can be used.-->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+
+    <!-- Polar SDK needs Bluetooth connect permission to connect for found BLE devices.-->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Allows Polar SDK to connect to paired bluetooth devices. Legacy Bluetooth permission,
+     which is needed on devices with API 30 (Android Q) or older. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+
+    <!-- Allows Polar SDK to discover and pair bluetooth devices. Legacy Bluetooth permission,
+     which is needed on devices with API 30 (Android Q) or older. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault">
+        <uses-library
+            android:name="com.google.android.wearable"
+            android:required="true" />
+
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service android:name=".services.polar.PolarService" />
+        <service android:name=".services.exercise.ExerciseService" />
+    </application>
+
+</manifest>
