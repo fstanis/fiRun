@@ -23,8 +23,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import me.stanis.apps.fiRun.database.Db
 import javax.inject.Singleton
+import me.stanis.apps.fiRun.database.Db
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -33,6 +33,29 @@ internal object DbModule {
     @Provides
     fun provideDb(@ApplicationContext context: Context) = Room.databaseBuilder(
         context,
-        Db::class.java, "db"
-    ).build()
+        Db::class.java,
+        "db"
+    )
+        .fallbackToDestructiveMigration()
+        .build()
+
+    @Singleton
+    @Provides
+    fun provideExerciseDao(db: Db) = db.exercise()
+
+    @Singleton
+    @Provides
+    fun provideHeartRateDao(db: Db) = db.heartRate()
+
+    @Singleton
+    @Provides
+    fun provideDistanceDao(db: Db) = db.distance()
+
+    @Singleton
+    @Provides
+    fun provideSpeedDao(db: Db) = db.speed()
+
+    @Singleton
+    @Provides
+    fun provideDevicesDao(db: Db) = db.devices()
 }

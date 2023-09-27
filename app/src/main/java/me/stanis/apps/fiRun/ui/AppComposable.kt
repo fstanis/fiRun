@@ -23,6 +23,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavOptionsBuilder
+import androidx.navigation.PopUpToBuilder
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import me.stanis.apps.fiRun.util.permissions.DefaultPermissionsManager
@@ -38,12 +39,14 @@ fun AppComposable(
 ) {
     CompositionLocalProvider(PermissionsManager.Local provides permissionsManager) {
         SwipeDismissableNavHost(
-            navController = navController, startDestination = startDestination.route
+            navController = navController,
+            startDestination = startDestination.route
         ) {
             for (screen in screens) {
                 composable(
                     route = screen.route,
-                    content = { screen.content(navController, it) })
+                    content = { screen.content(navController, it) }
+                )
             }
         }
     }
@@ -61,6 +64,14 @@ interface Screen {
     fun provide(): Screen
 }
 
-inline fun NavController.navigate(screen: Screen) = navigate(screen.route)
-inline fun NavController.navigate(screen: Screen, noinline builder: NavOptionsBuilder.() -> Unit) =
+inline fun NavController.navigate(
+    screen: Screen,
+    noinline builder: NavOptionsBuilder.() -> Unit = {}
+) =
     navigate(screen.route, builder)
+
+inline fun NavOptionsBuilder.popUpTo(
+    screen: Screen,
+    noinline popUpToBuilder: PopUpToBuilder.() -> Unit = {}
+) =
+    popUpTo(screen.route, popUpToBuilder)

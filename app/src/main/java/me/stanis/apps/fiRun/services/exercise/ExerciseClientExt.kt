@@ -16,66 +16,53 @@
 
 package me.stanis.apps.fiRun.services.exercise
 
-import androidx.health.services.client.ExerciseClient
-import androidx.health.services.client.ExerciseUpdateCallback
-import androidx.health.services.client.data.Availability
+import androidx.health.services.client.data.CumulativeDataPoint
 import androidx.health.services.client.data.DataType
-import androidx.health.services.client.data.ExerciseLapSummary
+import androidx.health.services.client.data.ExerciseEndReason
+import androidx.health.services.client.data.ExerciseInfo
 import androidx.health.services.client.data.ExerciseState
 import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.data.ExerciseUpdate
-import androidx.health.services.client.getCurrentExerciseInfo
-import java.time.Duration
-import java.time.Instant.now
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
-
-internal suspend fun ExerciseClient.setExerciseUpdateCallback(onExerciseUpdateReceived: (ExerciseUpdate) -> Unit): ExerciseUpdateCallback =
-    suspendCoroutine {
-        var callback: ExerciseUpdateCallback? = null
-        callback = object : ExerciseUpdateCallback {
-            override fun onExerciseUpdateReceived(update: ExerciseUpdate) =
-                onExerciseUpdateReceived(update)
-
-            override fun onRegistered() {
-                it.resume(callback!!)
-            }
-
-            override fun onRegistrationFailed(throwable: Throwable) {
-                it.resumeWithException(throwable)
-            }
-
-            // unused
-            override fun onAvailabilityChanged(u1: DataType<*, *>, u2: Availability) {}
-            override fun onLapSummaryReceived(u: ExerciseLapSummary) {}
-        }
-        setUpdateCallback(callback)
-    }
-
-internal suspend fun ExerciseClient.isOtherAppInProgress() =
-    getCurrentExerciseInfo().exerciseTrackedStatus == ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS
+import androidx.health.services.client.data.HeartRateAccuracy
+import androidx.health.services.client.data.IntervalDataPoint
+import androidx.health.services.client.data.SampleDataPoint
+import androidx.health.services.client.data.StatisticalDataPoint
+import java.time.Instant
+import me.stanis.apps.fiRun.util.clock.Clock
 
 internal val ExerciseUpdate.heartRateSamples get() = latestMetrics.getData(DataType.HEART_RATE_BPM)
-internal val ExerciseUpdate.totalDistance get() = latestMetrics.getData(DataType.DISTANCE_TOTAL)?.total
-internal val ExerciseUpdate.currentPace
-    get() = latestMetrics.getData(DataType.PACE).lastOrNull()?.value
-internal val ExerciseUpdate.averagePace get() = latestMetrics.getData(DataType.PACE_STATS)?.average
+internal val ExerciseUpdate.totalDistance get() = latestMetrics.getData(DataType.DISTANCE_TOTAL)
+internal val ExerciseUpdate.totalCalories get() = latestMetrics.getData(DataType.CALORIES_TOTAL)
+internal val ExerciseUpdate.speedSamples get() = latestMetrics.getData(DataType.SPEED)
+internal val ExerciseUpdate.speedStats get() = latestMetrics.getData(DataType.SPEED_STATS)
+internal val ExerciseUpdate.paceSamples get() = latestMetrics.getData(DataType.PACE)
+internal val ExerciseUpdate.paceStats get() = latestMetrics.getData(DataType.PACE_STATS)
+
 internal val ExerciseUpdate.isActive get() = exerciseStateInfo.state == ExerciseState.ACTIVE
-internal val ExerciseUpdate.isPaused get() = exerciseStateInfo.state == ExerciseState.USER_PAUSED
-internal val ExerciseUpdate.isEnded get() = exerciseStateInfo.state == ExerciseState.ENDED
+internal val ExerciseUpdate.isPaused get() = exerciseStateInfo.state.isPaused
+internal val ExerciseUpdate.isEnded get() = exerciseStateInfo.state.isEnded
+internal val ExerciseUpdate.isEndedInError
+    get() =
+        isEnded && exerciseStateInfo.endReason != ExerciseEndReason.USER_END
 internal val ExerciseUpdate.isLoading
-    get() = setOf(
+    get() = exerciseStateInfo.state.isResuming || exerciseStateInfo.state.isEnding || setOf(
         ExerciseState.USER_STARTING,
-        ExerciseState.USER_PAUSING,
-        ExerciseState.ENDING
+        ExerciseState.USER_PAUSING
     ).contains(exerciseStateInfo.state)
-internal val ExerciseUpdate.duration: Duration?
-    get() {
-        val checkpoint = activeDurationCheckpoint ?: return null
-        return if (isActive) {
-            checkpoint.activeDuration + Duration.between(checkpoint.time, now())
-        } else {
-            checkpoint.activeDuration
-        }
-    }
+
+private fun bootInstant(clock: Clock) = Instant.ofEpochMilli(
+    clock.currentTimeMillis() - clock.elapsedRealtime()
+)
+
+internal fun SampleDataPoint<*>.instant(clock: Clock): Instant = getTimeInstant(bootInstant(clock))
+internal fun IntervalDataPoint<*>.instant(clock: Clock): Instant = getEndInstant(bootInstant(clock))
+internal val CumulativeDataPoint<*>.instant: Instant get() = end
+internal val StatisticalDataPoint<*>.instant: Instant get() = end
+internal val ExerciseInfo.isActive
+    get() =
+        exerciseTrackedStatus == ExerciseTrackedStatus.OWNED_EXERCISE_IN_PROGRESS
+internal val ExerciseInfo.isOtherAppActive
+    get() =
+        exerciseTrackedStatus == ExerciseTrackedStatus.OTHER_APP_IN_PROGRESS
+internal val SampleDataPoint<Double>.sensorStatus
+    get() = (accuracy as? HeartRateAccuracy)?.sensorStatus ?: HeartRateAccuracy.SensorStatus.UNKNOWN

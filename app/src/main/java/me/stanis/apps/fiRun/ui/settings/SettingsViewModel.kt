@@ -16,29 +16,35 @@
 
 package me.stanis.apps.fiRun.ui.settings
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
+import androidx.datastore.core.DataStore
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-import me.stanis.apps.fiRun.util.settings.Settings
-import me.stanis.apps.fiRun.util.settings.Settings.Companion.Key
 import javax.inject.Inject
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import me.stanis.apps.fiRun.database.datastore.SettingsData
+import me.stanis.apps.fiRun.ui.BaseViewModel
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val settings: Settings
-) : ViewModel() {
-    val onlyHighHrAccuracyState = settings.observeBoolean(Key.ONLY_HIGH_HR_ACCURACY)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), false)
+    private val settings: DataStore<SettingsData>
+) : BaseViewModel() {
+    val onlyHighHrAccuracyState = settings.data.map { it.onlyHighHrAccuracy }.asState(false)
+    val keepScreenOn = settings.data.map { it.keepScreenOn }.asState(false)
 
     fun setHeartRateAccuracy(state: Boolean) {
         viewModelScope.launch {
-            settings.put(Key.ONLY_HIGH_HR_ACCURACY, state)
+            settings.updateData {
+                it.copy(onlyHighHrAccuracy = state)
+            }
+        }
+    }
+
+    fun setKeepScreenOn(state: Boolean) {
+        viewModelScope.launch {
+            settings.updateData {
+                it.copy(keepScreenOn = state)
+            }
         }
     }
 }

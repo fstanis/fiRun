@@ -31,5 +31,5 @@ internal object SystemModule {
     @Singleton
     @Provides
     fun provideNotificationManager(@ApplicationContext context: Context) =
-        context.getSystemService(NotificationManager::class.java)
+        context.getSystemService(NotificationManager::class.java)!!
 }

@@ -51,10 +51,11 @@ object SettingsScreen : Screen {
     override fun content(navController: NavHostController, navEntry: NavBackStackEntry) {
         val viewModel = hiltViewModel<SettingsViewModel>()
         val onlyHighHrAccuracy by viewModel.onlyHighHrAccuracyState.collectAsState()
+        val keepScreenOn by viewModel.keepScreenOn.collectAsState()
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = rememberScalingLazyListState(initialCenterItemIndex = 0),
-            autoCentering = AutoCenteringParams(itemIndex = 0),
+            autoCentering = AutoCenteringParams(itemIndex = 0)
         ) {
             item {
                 Chip(
@@ -76,6 +77,19 @@ object SettingsScreen : Screen {
                     },
                     toggleControl = {
                         Checkbox(checked = onlyHighHrAccuracy)
+                    }
+                )
+            }
+            item {
+                ToggleChip(
+                    modifier = Modifier.fillMaxWidth(),
+                    onCheckedChange = { viewModel.setKeepScreenOn(it) },
+                    checked = keepScreenOn,
+                    label = {
+                        Text("Keep screen on during exercise")
+                    },
+                    toggleControl = {
+                        Checkbox(checked = keepScreenOn)
                     }
                 )
             }

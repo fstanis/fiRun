@@ -16,79 +16,58 @@
 
 package me.stanis.apps.fiRun.ui.devices
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-import me.stanis.apps.fiRun.services.BoundServiceRepository
-import me.stanis.apps.fiRun.services.polar.DeviceConnectionStatus
-import me.stanis.apps.fiRun.services.polar.PolarBinder
-import me.stanis.apps.fiRun.services.polar.PolarService
-import me.stanis.apps.fiRun.services.polar.SearchStatus
-import me.stanis.apps.fiRun.util.settings.Settings
-import me.stanis.apps.fiRun.util.settings.Settings.Companion.Key
 import javax.inject.Inject
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+import me.stanis.apps.fiRun.models.HrDeviceInfo
+import me.stanis.apps.fiRun.persistence.DeviceManager
+import me.stanis.apps.fiRun.ui.BaseViewModel
+import me.stanis.apps.fiRun.ui.devices.model.UiState
 
 @HiltViewModel
 class DevicesViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val settings: Settings
-) : ViewModel() {
-    private val polarBinder = BoundServiceRepository<PolarBinder>(context)
-    val searchStatus
-        get() = polarBinder.flowWhenConnected { searchStatus }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, SearchStatus.NoSearch)
+    private val deviceManager: DeviceManager
+) : BaseViewModel() {
 
-    val deviceStatus
-        get() = polarBinder.flowWhenConnected { deviceStatus }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, DeviceConnectionStatus.NotConnected)
-
-    val devices = polarBinder.flowWhenConnected { devicesFound }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), emptySet())
-
-    val knownDevice = settings.observeString(Key.DEVICE_ID)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), "")
-
-    init {
-        polarBinder.bind(PolarService::class)
-    }
-
-    fun startSearch(onlyPolar: Boolean) {
-        viewModelScope.launch {
-            polarBinder.runWhenConnected { startDeviceSearch(onlyPolar) }
-        }
-    }
+    val uiStateFlow = combine(
+        deviceManager.knownDevices,
+        deviceManager.searchState
+    ) { knownDevices, searchState ->
+        UiState(
+            knownDevices = knownDevices,
+            searchState = searchState
+        )
+    }.asState(UiState.INITIAL)
 
     fun connectDevice(identifier: String) {
         viewModelScope.launch {
-            polarBinder.runWhenConnected { connectDevice(identifier) }
+            deviceManager.connectDevice(identifier)
         }
     }
 
-    fun disconnectDevice() {
+    fun startSearch() {
         viewModelScope.launch {
-            polarBinder.runWhenConnected { disconnectDevice() }
+            deviceManager.startSearch(true)
         }
     }
 
     fun stopSearch() {
         viewModelScope.launch {
-            polarBinder.runWhenConnected { stopServiceSearch() }
+            deviceManager.stopSearch()
         }
     }
 
-    fun saveDevice(deviceId: String) {
+    fun saveDevice(device: HrDeviceInfo) {
         viewModelScope.launch {
-            settings.put(Key.DEVICE_ID, deviceId)
+            deviceManager.saveDevice(device)
         }
     }
 
-    override fun onCleared() {
-        polarBinder.unbind()
-        super.onCleared()
+    fun disconnectDevice(identifier: String) {
+        viewModelScope.launch {
+            deviceManager.disconnectDevice(identifier)
+        }
     }
 }

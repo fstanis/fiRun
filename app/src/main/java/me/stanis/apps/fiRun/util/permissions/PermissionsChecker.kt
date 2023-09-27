@@ -16,6 +16,7 @@
 
 package me.stanis.apps.fiRun.util.permissions
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -50,13 +51,15 @@ object PermissionsChecker {
         ) == PackageManager.PERMISSION_GRANTED
 
     val permissionTitles = mapOf(
-        android.Manifest.permission.ACCESS_FINE_LOCATION to R.string.permission_access_fine_location,
-        android.Manifest.permission.BODY_SENSORS to R.string.permission_body_sensors,
-        android.Manifest.permission.ACTIVITY_RECOGNITION to R.string.permission_activity_recognition,
-        android.Manifest.permission.BLUETOOTH_CONNECT to R.string.permission_bluetooth_connect,
-        android.Manifest.permission.BLUETOOTH_SCAN to R.string.permission_bluetooth_scan,
-        android.Manifest.permission.BLUETOOTH to R.string.permission_bluetooth_connect,
-        android.Manifest.permission.BLUETOOTH_ADMIN to R.string.permission_bluetooth_scan,
+        Manifest.permission.ACCESS_FINE_LOCATION to R.string.permission_access_fine_location,
+        Manifest.permission.ACTIVITY_RECOGNITION to R.string.permission_activity_recognition,
+        Manifest.permission.BLUETOOTH to R.string.permission_bluetooth_connect,
+        Manifest.permission.BLUETOOTH_ADMIN to R.string.permission_bluetooth_scan,
+        Manifest.permission.BLUETOOTH_CONNECT to R.string.permission_bluetooth_connect,
+        Manifest.permission.BLUETOOTH_SCAN to R.string.permission_bluetooth_scan,
+        Manifest.permission.BODY_SENSORS to R.string.permission_body_sensors,
+        Manifest.permission.FOREGROUND_SERVICE to R.string.permission_foreground_service,
+        Manifest.permission.POST_NOTIFICATIONS to R.string.permission_post_notifications
     )
 
     private val allPermissions
@@ -68,28 +71,36 @@ object PermissionsChecker {
                     acc.union(permissions ?: emptySet())
                 }
 
+    private val notificationPermissions = listOfNotNull(
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.POST_NOTIFICATIONS
+        } else {
+            null
+        }
+    )
+
+    private val exercisePermissions = listOf(
+        Manifest.permission.ACTIVITY_RECOGNITION,
+        Manifest.permission.BODY_SENSORS
+    ).union(notificationPermissions)
+
     private val permissionsForCategory = mapOf(
         PermissionCategory.BASIC to emptyList(),
         PermissionCategory.POLAR to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             listOf(
-                android.Manifest.permission.BLUETOOTH_CONNECT,
-                android.Manifest.permission.BLUETOOTH_SCAN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN
             )
         } else {
             listOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.BLUETOOTH,
-                android.Manifest.permission.BLUETOOTH_ADMIN
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN
             )
-        },
-        PermissionCategory.INDOOR_RUN to listOf(
-            android.Manifest.permission.BODY_SENSORS,
-            android.Manifest.permission.ACTIVITY_RECOGNITION
-        ),
+        }.union(notificationPermissions),
+        PermissionCategory.INDOOR_RUN to exercisePermissions,
         PermissionCategory.OUTDOOR_RUN to listOf(
-            android.Manifest.permission.ACCESS_FINE_LOCATION,
-            android.Manifest.permission.BODY_SENSORS,
-            android.Manifest.permission.ACTIVITY_RECOGNITION
-        )
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ).union(exercisePermissions)
     )
 }

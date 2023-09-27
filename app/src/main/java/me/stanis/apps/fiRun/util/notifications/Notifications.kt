@@ -23,10 +23,10 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import dagger.hilt.android.qualifiers.ApplicationContext
-import me.stanis.apps.fiRun.MainActivity
-import me.stanis.apps.fiRun.R
 import javax.inject.Inject
 import javax.inject.Singleton
+import me.stanis.apps.fiRun.MainActivity
+import me.stanis.apps.fiRun.R
 
 @Singleton
 class Notifications @Inject constructor(
@@ -50,14 +50,14 @@ class Notifications @Inject constructor(
             NotificationChannel(
                 "exercise_channel_id",
                 context.getString(R.string.notification_channel_exercise),
-                NotificationManager.IMPORTANCE_LOW,
+                NotificationManager.IMPORTANCE_LOW
             )
         )
         notificationManager.createNotificationChannel(
             NotificationChannel(
                 "devices_channel_id",
                 context.getString(R.string.notification_channel_device),
-                NotificationManager.IMPORTANCE_LOW,
+                NotificationManager.IMPORTANCE_LOW
             )
         )
     }

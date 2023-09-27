@@ -16,34 +16,34 @@
 
 package me.stanis.apps.fiRun.ui.summary
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import me.stanis.apps.fiRun.services.BoundServiceRepository
-import me.stanis.apps.fiRun.services.exercise.ExerciseBinder
-import me.stanis.apps.fiRun.services.exercise.ExerciseService
-import me.stanis.apps.fiRun.services.exercise.ExerciseStatus
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import me.stanis.apps.fiRun.database.dao.ExerciseDao
+import me.stanis.apps.fiRun.database.entities.ExerciseWithData
+import me.stanis.apps.fiRun.persistence.ExerciseManager
+import me.stanis.apps.fiRun.ui.BaseViewModel
 
 @HiltViewModel
 class SummaryViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
-) : ViewModel() {
-    private val exerciseBinder = BoundServiceRepository<ExerciseBinder>(context)
-
-    val status = exerciseBinder.flowWhenConnected { status }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), ExerciseStatus())
+    private val exerciseDao: ExerciseDao,
+    private val exerciseManager: ExerciseManager
+) : BaseViewModel() {
+    private val mutableExerciseData = MutableStateFlow<ExerciseWithData?>(null)
+    val exerciseData get() = mutableExerciseData.asStateFlow()
 
     init {
-        exerciseBinder.bind(ExerciseService::class)
+        refreshLatest()
     }
 
-    override fun onCleared() {
-        exerciseBinder.unbind()
-        super.onCleared()
+    fun refreshLatest() {
+        viewModelScope.launch {
+            mutableExerciseData.value = exerciseDao.getLastWithData()
+        }
     }
+
+    val status = exerciseManager.exerciseState
 }

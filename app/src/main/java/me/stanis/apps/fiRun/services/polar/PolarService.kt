@@ -14,210 +14,183 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package me.stanis.apps.fiRun.services.polar
 
-import android.content.Intent
+import android.app.Notification
 import android.os.Binder
-import android.os.IBinder
-import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.lifecycleScope
 import com.polar.sdk.api.PolarBleApi
-import com.polar.sdk.api.PolarBleApiCallback
-import com.polar.sdk.api.model.PolarDeviceInfo
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.reactive.asFlow
-import me.stanis.apps.fiRun.util.heartrate.HeartRate
+import me.stanis.apps.fiRun.models.HeartRate
+import me.stanis.apps.fiRun.models.HrDeviceInfo
+import me.stanis.apps.fiRun.models.enums.HrDeviceState
+import me.stanis.apps.fiRun.persistence.ExerciseWriter
+import me.stanis.apps.fiRun.services.ForegroundableService
+import me.stanis.apps.fiRun.util.clock.Clock
+import me.stanis.apps.fiRun.util.errors.ServiceError
 import me.stanis.apps.fiRun.util.notifications.Notifications
-import me.stanis.apps.fiRun.util.settings.Settings
-import java.util.UUID
-import javax.inject.Inject
 
 @AndroidEntryPoint
-class PolarService : LifecycleService() {
+class PolarService : ForegroundableService<PolarBinder>() {
     @Inject
     lateinit var api: PolarBleApi
 
     @Inject
-    lateinit var settings: Settings
-
-    @Inject
     lateinit var notifications: Notifications
 
-    private val mutableDeviceStatus =
-        MutableStateFlow<DeviceConnectionStatus>(DeviceConnectionStatus.NotConnected)
-    private val mutableDevicesFound = MutableStateFlow<Set<PolarDeviceInfo>>(emptySet())
-    private val mutableSearchStatus = MutableStateFlow(SearchStatus.NoSearch)
+    @Inject
+    lateinit var exerciseWriter: ExerciseWriter
+
+    @Inject
+    lateinit var clock: Clock
+
+    private val mutableSearchState = MutableStateFlow(SearchState.NO_SEARCH)
     private var searchJob: Job? = null
+    private val errors = MutableSharedFlow<ServiceError>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
 
-    private val lastHeartRate = mutableDeviceStatus
-        .map {
-            if ((it as? DeviceConnectionStatus.Connected)?.supportsHr == true) {
-                it
-            } else {
-                null
-            }
-        }
-        .flatMapLatest { status ->
-            status?.deviceId?.let { api.startHrStreaming(it).onErrorComplete().asFlow() }
-                ?: emptyFlow()
-        }
-        .mapNotNull {
-            HeartRate.fromPolarHrData(it)
-        }
-        .stateIn(lifecycleScope, SharingStarted.Lazily, null)
+    override val notification: Notification
+        get() = notifications.createPolarNotification(
+            "Polar info"
+        )
 
-    private val binder = object : Binder(), PolarBinder {
-        override val deviceStatus: StateFlow<DeviceConnectionStatus> get() = mutableDeviceStatus
-        override val devicesFound: StateFlow<Set<PolarDeviceInfo>> get() = mutableDevicesFound
-        override val searchStatus: StateFlow<SearchStatus> get() = mutableSearchStatus
-        override val lastHeartRate get() = this@PolarService.lastHeartRate
+    override fun onCoroutineException(throwable: Throwable) {
+        errors.tryEmit(ServiceError.WithThrowable(throwable))
+    }
+
+    override val binder: PolarBinder = object : Binder(), PolarBinder {
+        override val connectionState: StateFlow<ConnectionState> get() = serviceState
+        override val searchState: StateFlow<SearchState> = mutableSearchState.asStateFlow()
+        override val heartRateUpdates get() = this@PolarService.heartRateUpdates
+        override val errors get() = this@PolarService.errors
         override fun startDeviceSearch(onlyPolar: Boolean) =
             this@PolarService.startDeviceSearch(onlyPolar)
 
-        override fun stopServiceSearch() = this@PolarService.stopServiceSearch()
+        override fun stopDeviceSearch() = this@PolarService.stopDeviceSearch()
         override fun connectDevice(identifier: String) = this@PolarService.connectDevice(identifier)
-        override fun disconnectDevice() = this@PolarService.disconnectDevice()
+        override fun disconnectDevice(identifier: String) =
+            this@PolarService.disconnectDevice(identifier)
     }
 
     private fun startDeviceSearch(onlyPolar: Boolean) {
-        val newStatus = if (onlyPolar) SearchStatus.OnlyPolar else SearchStatus.AllDevices
-        if (!mutableSearchStatus.compareAndSet(SearchStatus.NoSearch, newStatus)) {
+        if (mutableSearchState.value.status != SearchState.SearchStatus.NoSearch) {
             return
         }
-        mutableDevicesFound.value = emptySet()
+        val newStatus =
+            if (onlyPolar) SearchState.SearchStatus.OnlyPolar else SearchState.SearchStatus.AllDevices
         searchJob?.cancel()
+        mutableSearchState.value = SearchState(newStatus)
         api.setPolarFilter(onlyPolar)
-        searchJob = lifecycleScope.launch {
-            api.searchForDevice().asFlow().collect { device ->
-                mutableDevicesFound.update { devices ->
-                    devices.toMutableSet().also { it.add(device) }
+        searchJob = scope.launch {
+            api.searchForDevice().doOnError { errors.tryEmit(ServiceError.WithThrowable(it)) }
+                .asFlow()
+                .map(HrDeviceInfo::fromPolarInfo)
+                .collect { device ->
+                    mutableSearchState.update { it.withDevice(device) }
                 }
-            }
         }
     }
 
-    private fun stopServiceSearch() {
-        mutableSearchStatus.value = SearchStatus.NoSearch
+    private fun stopDeviceSearch() {
+        mutableSearchState.update { it.copy(status = SearchState.SearchStatus.NoSearch) }
         searchJob?.cancel()
     }
 
     private fun connectDevice(identifier: String) {
-        if (mutableDeviceStatus.value.deviceId == identifier) {
-            return
-        }
-        disconnectDevice()
         api.connectToDevice(identifier)
+        val otherDevices = connectedDevices.value.map { it.deviceId }.filter { it != identifier }
+        for (deviceId in otherDevices) {
+            disconnectDevice(deviceId)
+        }
     }
 
-    private fun disconnectDevice() {
-        mutableDeviceStatus.value.deviceId?.let { api.disconnectFromDevice(it) }
+    private fun disconnectDevice(identifier: String) {
+        api.disconnectFromDevice(identifier)
     }
 
-    private val callback = object : PolarBleApiCallback() {
-        override fun deviceConnected(polarDeviceInfo: PolarDeviceInfo) {
-            mutableDeviceStatus.value = DeviceConnectionStatus.Connected(
-                DeviceConnectionStatus.DeviceInfo(polarDeviceInfo)
+    private val connectedDevices = MutableStateFlow<Set<HrDeviceInfo>>(emptySet())
+
+    private val serviceState = connectedDevices.map {
+        ConnectionState(it)
+    }
+        .stateIn(scope, SharingStarted.Eagerly, ConnectionState.INITIAL)
+
+    private val hasConnectedDevices = connectedDevices.map {
+        it.any { device -> device.state == HrDeviceState.CONNECTED }
+    }.conflate().distinctUntilChanged()
+
+    private val heartRateUpdates = connectedDevices
+        .map {
+            it
+                .filter { device -> device.canStreamHr }
+                .map { device -> device.deviceId }
+                .toSet()
+        }
+        .distinctUntilChanged()
+        .flatMapLatest {
+            merge(
+                *it.map { deviceId ->
+                    api.startHrStreaming(deviceId)
+                        .onErrorComplete { error ->
+                            errors.tryEmit(ServiceError.WithThrowable(error))
+                            true
+                        }
+                        .asFlow()
+                        .transform { data ->
+                            for (sample in data.samples) {
+                                val hr = HeartRate.fromPolarHrSample(deviceId, sample, clock)
+                                if (hr != null) {
+                                    emit(hr)
+                                }
+                            }
+                        }
+                }.toTypedArray()
             )
         }
-
-        override fun deviceConnecting(polarDeviceInfo: PolarDeviceInfo) {
-            mutableDeviceStatus.value = DeviceConnectionStatus.Connecting(polarDeviceInfo.deviceId)
-        }
-
-        override fun deviceDisconnected(polarDeviceInfo: PolarDeviceInfo) {
-            mutableDeviceStatus.value = DeviceConnectionStatus.NotConnected
-        }
-
-        override fun bleSdkFeatureReady(
-            identifier: String,
-            feature: PolarBleApi.PolarBleSdkFeature
-        ) {
-            updateConnectedDeviceInfo(identifier) {
-                it.copy(
-                    features = it.features.union(setOf(feature)),
-                )
-            }
-        }
-
-        override fun disInformationReceived(identifier: String, uuid: UUID, value: String) {
-            updateConnectedDeviceInfo(identifier) {
-                it.copy(
-                    dis = it.dis.toMutableMap().also { dis -> dis[uuid] = value })
-            }
-        }
-
-        override fun batteryLevelReceived(identifier: String, level: Int) {
-            updateConnectedDeviceInfo(identifier) { it.copy(batteryLevel = level) }
-        }
-    }
-
-    private fun updateConnectedDeviceInfo(
-        identifier: String,
-        function: (DeviceConnectionStatus.DeviceInfo) -> DeviceConnectionStatus.DeviceInfo
-    ) {
-        mutableDeviceStatus.update { status ->
-            (status as? DeviceConnectionStatus.Connected)?.let {
-                if (it.deviceInfo.info.deviceId == identifier) {
-                    DeviceConnectionStatus.Connected(
-                        deviceInfo = function(it.deviceInfo)
-                    )
-                } else {
-                    it
-                }
-            } ?: status
-        }
-    }
-
-    private fun moveToForeground() {
-        val intent = Intent(this, this::class.java).also { it.action = ACTION_START_FOREGROUND }
-        startForegroundService(intent)
-    }
-
-    private fun removeFromForeground() {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-    }
+        .shareIn(scope, SharingStarted.WhileSubscribed())
 
     override fun onCreate() {
         super.onCreate()
-        api.setApiCallback(callback)
-        lifecycleScope.launch {
-            mutableDeviceStatus.collect {
-                if (it is DeviceConnectionStatus.Connected) {
-                    moveToForeground()
-                } else {
-                    removeFromForeground()
+        api.setAutomaticReconnection(true)
+        api.setApiCallback(
+            DevicesCallback(clock) {
+                connectedDevices.value = it.values.toSet()
+            }
+        )
+        scope.launch {
+            launch {
+                hasConnectedDevices.collect {
+                    if (it) {
+                        moveToForeground()
+                    } else {
+                        removeFromForeground()
+                    }
                 }
             }
+            launch { exerciseWriter.writeHeartRateUpdates(heartRateUpdates) }
         }
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_START_FOREGROUND) {
-            startForeground(1, notifications.createPolarNotification("Polar"))
-            return super.onStartCommand(intent, flags, startId)
-        }
-        stopSelf()
-        return START_NOT_STICKY
-    }
-
-    override fun onBind(intent: Intent): IBinder {
-        super.onBind(intent)
-        return binder
-    }
-
-    companion object {
-        private const val ACTION_START_FOREGROUND = "start_foreground"
     }
 }

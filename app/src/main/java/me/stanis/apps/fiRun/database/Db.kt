@@ -18,10 +18,42 @@ package me.stanis.apps.fiRun.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import me.stanis.apps.fiRun.database.dao.SettingDao
-import me.stanis.apps.fiRun.database.entities.Setting
+import androidx.room.TypeConverters
+import me.stanis.apps.fiRun.database.dao.DeviceDao
+import me.stanis.apps.fiRun.database.dao.DistanceDao
+import me.stanis.apps.fiRun.database.dao.ExerciseDao
+import me.stanis.apps.fiRun.database.dao.HeartRateDao
+import me.stanis.apps.fiRun.database.dao.SpeedDao
+import me.stanis.apps.fiRun.database.entities.DeviceEntity
+import me.stanis.apps.fiRun.database.entities.DistanceEntity
+import me.stanis.apps.fiRun.database.entities.ExerciseEntity
+import me.stanis.apps.fiRun.database.entities.HeartRateEntity
+import me.stanis.apps.fiRun.database.entities.SpeedEntity
+import me.stanis.apps.fiRun.database.util.converters.DurationConverters
+import me.stanis.apps.fiRun.database.util.converters.HeartRateSourceConverters
+import me.stanis.apps.fiRun.database.util.converters.InstantConverters
+import me.stanis.apps.fiRun.database.util.converters.ZonedDateTimeConverters
 
-@Database(entities = [Setting::class], version = 1)
+@Database(
+    entities = [
+        ExerciseEntity::class,
+        DistanceEntity::class,
+        SpeedEntity::class,
+        HeartRateEntity::class,
+        DeviceEntity::class
+    ],
+    version = 11
+)
+@TypeConverters(
+    ZonedDateTimeConverters::class,
+    DurationConverters::class,
+    InstantConverters::class,
+    HeartRateSourceConverters::class
+)
 abstract class Db : RoomDatabase() {
-    abstract fun settings(): SettingDao
+    abstract fun exercise(): ExerciseDao
+    abstract fun distance(): DistanceDao
+    abstract fun speed(): SpeedDao
+    abstract fun heartRate(): HeartRateDao
+    abstract fun devices(): DeviceDao
 }

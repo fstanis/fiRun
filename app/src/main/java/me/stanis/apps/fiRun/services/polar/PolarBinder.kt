@@ -17,18 +17,20 @@
 package me.stanis.apps.fiRun.services.polar
 
 import android.os.IBinder
-import com.polar.sdk.api.model.PolarDeviceInfo
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import me.stanis.apps.fiRun.util.heartrate.HeartRate
+import me.stanis.apps.fiRun.models.HeartRate
+import me.stanis.apps.fiRun.util.errors.ServiceError
 
 interface PolarBinder : IBinder {
-    val devicesFound: StateFlow<Set<PolarDeviceInfo>>
-    val lastHeartRate: StateFlow<HeartRate?>
+    val heartRateUpdates: SharedFlow<HeartRate>
 
     fun startDeviceSearch(onlyPolar: Boolean)
-    fun stopServiceSearch()
-    val deviceStatus: StateFlow<DeviceConnectionStatus>
-    val searchStatus: StateFlow<SearchStatus>
+    fun stopDeviceSearch()
+    val connectionState: StateFlow<ConnectionState>
+    val searchState: StateFlow<SearchState>
     fun connectDevice(identifier: String)
-    fun disconnectDevice()
+    fun disconnectDevice(identifier: String)
+
+    val errors: SharedFlow<ServiceError>
 }

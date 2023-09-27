@@ -18,29 +18,32 @@ package me.stanis.apps.fiRun.services.exercise
 
 import androidx.health.services.client.data.DataType
 import androidx.health.services.client.data.ExerciseConfig
-import androidx.health.services.client.data.ExerciseType
+import androidx.health.services.client.data.ExerciseType as HealthExerciseType
+import me.stanis.apps.fiRun.models.enums.ExerciseType
 
 object RunExerciseConfig {
-    fun forType(type: ExerciseBinder.RunType, includeHeartRate: Boolean): ExerciseConfig {
+    fun forType(type: ExerciseType, includeHeartRate: Boolean): ExerciseConfig {
         val builder = when (type) {
-            ExerciseBinder.RunType.INDOOR_RUN ->
-                ExerciseConfig.builder(ExerciseType.RUNNING_TREADMILL)
-                    .setIsAutoPauseAndResumeEnabled(false)
+            ExerciseType.IndoorRun -> {
+                ExerciseConfig.builder(HealthExerciseType.RUNNING_TREADMILL)
+            }
 
-            ExerciseBinder.RunType.OUTDOOR_RUN ->
-                ExerciseConfig.builder(ExerciseType.RUNNING)
+            ExerciseType.OutdoorRun -> {
+                ExerciseConfig.builder(HealthExerciseType.RUNNING)
                     .setIsGpsEnabled(true)
-                    .setIsAutoPauseAndResumeEnabled(false)
+            }
         }
-        val dataTypes = mutableSetOf<DataType<*, *>>(
-            DataType.DISTANCE_TOTAL,
-            //DataType.PACE,
-            //DataType.PACE_STATS
-        )
-        if (includeHeartRate) {
-            dataTypes.add(DataType.HEART_RATE_BPM)
-        }
-        builder.setDataTypes(dataTypes)
+        builder
+            .setIsAutoPauseAndResumeEnabled(false)
+            .setDataTypes(
+                setOfNotNull<DataType<*, *>>(
+                    DataType.DISTANCE_TOTAL,
+                    DataType.CALORIES_TOTAL,
+                    DataType.SPEED_STATS,
+                    DataType.SPEED,
+                    DataType.HEART_RATE_BPM.takeIf { includeHeartRate }
+                )
+            )
         return builder.build()
     }
 }

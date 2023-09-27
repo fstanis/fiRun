@@ -38,6 +38,7 @@ import androidx.navigation.NavHostController
 import androidx.wear.compose.foundation.lazy.AutoCenteringParams
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.Checkbox
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
@@ -45,15 +46,14 @@ import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.RadioButton
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.ToggleChip
-import com.polar.sdk.api.model.PolarDeviceInfo
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import me.stanis.apps.fiRun.R
-import me.stanis.apps.fiRun.services.polar.DeviceConnectionStatus
-import me.stanis.apps.fiRun.services.polar.SearchStatus
+import me.stanis.apps.fiRun.models.HrDeviceInfo
+import me.stanis.apps.fiRun.services.polar.SearchState
 import me.stanis.apps.fiRun.ui.Screen
 import me.stanis.apps.fiRun.util.permissions.PermissionsChecker
 import me.stanis.apps.fiRun.util.permissions.PermissionsManager
@@ -65,23 +65,19 @@ object DevicesScreen : Screen {
     @Composable
     override fun content(navController: NavHostController, navEntry: NavBackStackEntry) {
         val viewModel = hiltViewModel<DevicesViewModel>()
-        val devices by viewModel.devices.collectAsState()
-        val deviceStatus by viewModel.deviceStatus.collectAsState()
-        val searchActive by viewModel.searchStatus.collectAsState()
-        val knownDevice by viewModel.knownDevice.collectAsState()
+        val uiState by viewModel.uiStateFlow.collectAsState()
         val permissionsManager = PermissionsManager.Local.current
-        if (searchActive == SearchStatus.NoSearch) {
+        if (uiState.searchState.status == SearchState.SearchStatus.NoSearch) {
             MainPage(
-                deviceStatus = deviceStatus,
-                knownDevice = knownDevice,
+                knownDevices = uiState.knownDevices,
                 disconnectDevice = viewModel::disconnectDevice,
                 connectDevice = viewModel::connectDevice,
-                startSearch = { viewModel.startSearch(true) },
+                startSearch = viewModel::startSearch,
                 permissionsManager = permissionsManager
             )
         } else {
             SearchPage(
-                devices = devices,
+                devices = uiState.searchState.devicesFound,
                 onSelect = {
                     viewModel.saveDevice(it)
                     viewModel.stopSearch()
@@ -95,9 +91,8 @@ object DevicesScreen : Screen {
 
     @Composable
     fun MainPage(
-        deviceStatus: DeviceConnectionStatus,
-        knownDevice: String,
-        disconnectDevice: () -> Unit,
+        knownDevices: Set<HrDeviceInfo>,
+        disconnectDevice: (String) -> Unit,
         connectDevice: (String) -> Unit,
         startSearch: () -> Unit,
         permissionsManager: PermissionsManager
@@ -105,34 +100,33 @@ object DevicesScreen : Screen {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = rememberScalingLazyListState(initialCenterItemIndex = 0),
-            autoCentering = AutoCenteringParams(itemIndex = 0),
+            autoCentering = AutoCenteringParams(itemIndex = 0)
         ) {
             item {
-                WatchHrChip(deviceStatus is DeviceConnectionStatus.NotConnected) {
-                    disconnectDevice()
-                }
+                WatchHrChip()
             }
-            item {
-                if (knownDevice.isEmpty()) {
-                    NoDeviceChip()
-                } else {
+            for (device in knownDevices) {
+                item {
                     DeviceChip(
-                        selected = deviceStatus is DeviceConnectionStatus.Connected,
-                        title = knownDevice
-                    ) {
-                        connectDevice(knownDevice)
-                    }
+                        device = device,
+                        onConnect = { connectDevice(device.deviceId) },
+                        onDisconnect = { disconnectDevice(device.deviceId) }
+                    )
                 }
             }
             item {
                 Spacer(modifier = Modifier.size(8.dp))
             }
             item {
-                val hasPermissions by permissionsManager.isGranted(category = PermissionsChecker.PermissionCategory.POLAR)
+                val hasPermissions by permissionsManager.isGranted(
+                    category = PermissionsChecker.PermissionCategory.POLAR
+                )
                 ConnectChip(
                     hasPermissions = hasPermissions,
                     onRequestPermissions = {
-                        permissionsManager.requestCategory(PermissionsChecker.PermissionCategory.POLAR)
+                        permissionsManager.requestCategory(
+                            PermissionsChecker.PermissionCategory.POLAR
+                        )
                     },
                     onClick = {
                         startSearch()
@@ -144,14 +138,14 @@ object DevicesScreen : Screen {
 
     @Composable
     fun SearchPage(
-        devices: Set<PolarDeviceInfo>,
-        onSelect: (String) -> Unit,
-        onCancel: () -> Unit,
+        devices: Set<HrDeviceInfo>,
+        onSelect: (HrDeviceInfo) -> Unit,
+        onCancel: () -> Unit
     ) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = rememberScalingLazyListState(initialCenterItemIndex = 0),
-            autoCentering = AutoCenteringParams(itemIndex = 0),
+            autoCentering = AutoCenteringParams(itemIndex = 0)
         ) {
             if (devices.isEmpty()) {
                 item {
@@ -163,7 +157,7 @@ object DevicesScreen : Screen {
                     Chip(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ChipDefaults.primaryChipColors(),
-                        onClick = { onSelect(device.deviceId) },
+                        onClick = { onSelect(device) },
                         label = { Text(device.name) },
                         secondaryLabel = { Text(device.deviceId) },
                         icon = {
@@ -196,13 +190,14 @@ object DevicesScreen : Screen {
     }
 
     @Composable
-    private fun WatchHrChip(selected: Boolean, onSelect: () -> Unit) {
+    private fun WatchHrChip() {
         ToggleChip(
             modifier = Modifier.fillMaxWidth(),
-            checked = selected,
-            onCheckedChange = { if (it) onSelect() },
+            checked = true,
+            enabled = false,
+            onCheckedChange = { },
             label = { Text("Built-in sensor") },
-            toggleControl = { RadioButton(selected = selected) }
+            toggleControl = { Checkbox(checked = true) }
         )
     }
 
@@ -220,14 +215,24 @@ object DevicesScreen : Screen {
     }
 
     @Composable
-    private fun DeviceChip(selected: Boolean, title: String, onSelect: () -> Unit) {
+    private fun DeviceChip(
+        device: HrDeviceInfo,
+        onConnect: () -> Unit,
+        onDisconnect: () -> Unit
+    ) {
         ToggleChip(
             modifier = Modifier.fillMaxWidth(),
-            checked = selected,
-            onCheckedChange = { if (it) onSelect() },
-            label = { Text(title) },
-            secondaryLabel = { Text("device") },
-            toggleControl = { RadioButton(selected = selected) }
+            checked = device.canStreamHr,
+            onCheckedChange = { if (it) onConnect() else onDisconnect() },
+            label = { Text(device.name) },
+            secondaryLabel = { Text(device.deviceId) },
+            toggleControl = {
+                if (device.isPreparing) {
+                    CircularProgressIndicator()
+                } else {
+                    Checkbox(checked = device.canStreamHr)
+                }
+            }
         )
     }
 

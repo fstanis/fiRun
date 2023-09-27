@@ -16,7 +16,6 @@
 
 package me.stanis.apps.fiRun.util.permissions
 
-
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -37,13 +36,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.combineTransform
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import me.stanis.apps.fiRun.util.permissions.PermissionsChecker.neededPermissions
 import javax.inject.Inject
 import javax.inject.Singleton
-
 
 @Singleton
 class DefaultPermissionsManager @Inject constructor(
@@ -53,7 +52,7 @@ class DefaultPermissionsManager @Inject constructor(
     private val mutableGrantedPermissions = MutableStateFlow(currentGrantedPermissions)
     private val neededCategories =
         MutableStateFlow<Set<PermissionsChecker.PermissionCategory>>(emptySet())
-    private val mutableRequests = MutableSharedFlow<Iterable<String>>()
+    private val mutableRequests = MutableSharedFlow<Iterable<String>>(replay = 100)
     private val grantedCategory = PermissionsChecker.PermissionCategory.values()
         .associateWith { MutableStateFlow(currentGrantedCategories.contains(it)) }
 
@@ -64,22 +63,22 @@ class DefaultPermissionsManager @Inject constructor(
         }
     val neededPermissions = neededCategories.map { it.neededPermissions }
 
-    fun launchPermissionRequests(
-        lifecycleOwner: LifecycleOwner,
+    fun permissionRequests(
         permissionRequest: ActivityResultLauncher<Array<String>>
     ) =
-        lifecycleOwner.lifecycleScope.launch {
-            combineTransform(mutableRequests, mutableGrantedPermissions) { requests, granted ->
-                val nonGranted = requests.toMutableSet().also { it.removeAll(granted) }
-                if (nonGranted.isNotEmpty()) {
-                    emit(nonGranted.toTypedArray())
-                }
+        combineTransform(mutableRequests, mutableGrantedPermissions) { requests, granted ->
+            val nonGranted = requests.toMutableSet().also { it.removeAll(granted) }
+            if (nonGranted.isNotEmpty()) {
+                emit(nonGranted.toTypedArray())
             }
-                .flowWithLifecycle(lifecycleOwner.lifecycle)
-                .collect {
-                    permissionRequest.launch(it)
-                }
         }
+            .onEach {
+                permissionRequest.launch(it)
+            }
+
+    fun launchPermissionRequests(owner: LifecycleOwner, permissionRequest: ActivityResultLauncher<Array<String>>) {
+        permissionRequests(permissionRequest).flowWithLifecycle(owner.lifecycle).launchIn(owner.lifecycleScope)
+    }
 
     suspend fun requestPermission(permission: String) {
         mutableRequests.emit(listOf(permission))

@@ -52,8 +52,12 @@ fun PermissionsDialog(
     val allPermissionsGranted by permissionsManager.allNeededPermissionsGranted.collectAsState(
         initial = true
     )
-    val neededPermissions by permissionsManager.neededPermissions.collectAsState(initial = emptySet())
-    val grantedPermissions by permissionsManager.grantedPermissions.collectAsState(initial = emptySet())
+    val neededPermissions by permissionsManager.neededPermissions.collectAsState(
+        initial = emptySet()
+    )
+    val grantedPermissions by permissionsManager.grantedPermissions.collectAsState(
+        initial = emptySet()
+    )
     val scope = rememberCoroutineScope()
     if (requestImmediately) {
         LaunchedEffect(key1 = neededPermissions) {
@@ -81,12 +85,12 @@ private fun PermissionsDialog(
 ) {
     Dialog(
         showDialog = !allNeededPermissionsGranted,
-        onDismissRequest = onCancel,
+        onDismissRequest = onCancel
     ) {
         ScalingLazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = rememberScalingLazyListState(initialCenterItemIndex = 0),
-            autoCentering = AutoCenteringParams(itemIndex = 0),
+            autoCentering = AutoCenteringParams(itemIndex = 0)
         ) {
             item {
                 Text(stringResource(R.string.permission_required))
@@ -98,7 +102,7 @@ private fun PermissionsDialog(
                     }
                     PermissionChip(
                         title = stringResource(PermissionsChecker.permissionTitles[permission]!!),
-                        granted = granted,
+                        granted = granted
                     ) { onRequestPermission(permission) }
                 }
             }
