@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package me.stanis.apps.fiRun.services
 
 import android.app.Service
@@ -22,6 +24,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import kotlin.reflect.KClass
+import kotlin.reflect.safeCast
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,12 +35,10 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.reflect.KClass
-import kotlin.reflect.safeCast
 
 class BoundServiceRepository<T : IBinder>(
     private val type: KClass<out T>,
-    private val context: Context,
+    private val context: Context
 ) {
     private val mutableBinder = MutableStateFlow<T?>(null)
     val binder get() = mutableBinder.asStateFlow()

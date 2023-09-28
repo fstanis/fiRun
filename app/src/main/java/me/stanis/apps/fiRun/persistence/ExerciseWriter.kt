@@ -61,7 +61,7 @@ class ExerciseWriter @Inject constructor(
             val exerciseIdState = exerciseIdFlow.stateIn(this)
             statusUpdates.collect { state ->
                 val exerciseId = exerciseIdState.value ?: return@collect
-                if (state.status == ExerciseStatus.Ended || state.status == ExerciseStatus.NotStarted) {
+                if (!state.status.isActive) {
                     clearCurrent()
                 }
                 if (state.isPartial) {

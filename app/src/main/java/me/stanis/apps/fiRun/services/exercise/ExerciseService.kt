@@ -33,6 +33,7 @@ import androidx.health.services.client.pauseExercise
 import androidx.health.services.client.resumeExercise
 import androidx.health.services.client.startExercise
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.BufferOverflow
@@ -59,7 +60,6 @@ import me.stanis.apps.fiRun.services.exercise.ExerciseCallback.Companion.setExer
 import me.stanis.apps.fiRun.util.clock.Clock
 import me.stanis.apps.fiRun.util.errors.ServiceError
 import me.stanis.apps.fiRun.util.notifications.Notifications
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class ExerciseService : ForegroundableService<ExerciseBinder>() {

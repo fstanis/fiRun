@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import me.stanis.apps.fiRun.util.permissions.PermissionsChecker.PermissionCategory
 import me.stanis.apps.fiRun.util.permissions.PermissionsChecker.neededPermissions
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,9 +52,9 @@ class DefaultPermissionsManager @Inject constructor(
     private val grantedCategories = MutableStateFlow(currentGrantedCategories)
     private val mutableGrantedPermissions = MutableStateFlow(currentGrantedPermissions)
     private val neededCategories =
-        MutableStateFlow<Set<PermissionsChecker.PermissionCategory>>(emptySet())
+        MutableStateFlow<Set<PermissionCategory>>(emptySet())
     private val mutableRequests = MutableSharedFlow<Iterable<String>>(replay = 100)
-    private val grantedCategory = PermissionsChecker.PermissionCategory.values()
+    private val grantedCategory = PermissionCategory.values()
         .associateWith { MutableStateFlow(currentGrantedCategories.contains(it)) }
 
     val grantedPermissions get() = mutableGrantedPermissions.asStateFlow()
@@ -76,8 +77,13 @@ class DefaultPermissionsManager @Inject constructor(
                 permissionRequest.launch(it)
             }
 
-    fun launchPermissionRequests(owner: LifecycleOwner, permissionRequest: ActivityResultLauncher<Array<String>>) {
-        permissionRequests(permissionRequest).flowWithLifecycle(owner.lifecycle).launchIn(owner.lifecycleScope)
+    fun launchPermissionRequests(
+        owner: LifecycleOwner,
+        permissionRequest: ActivityResultLauncher<Array<String>>
+    ) {
+        permissionRequests(permissionRequest).flowWithLifecycle(owner.lifecycle).launchIn(
+            owner.lifecycleScope
+        )
     }
 
     suspend fun requestPermission(permission: String) {
@@ -88,13 +94,13 @@ class DefaultPermissionsManager @Inject constructor(
         mutableRequests.emit(neededPermissions.first())
     }
 
-    override fun requestCategory(category: PermissionsChecker.PermissionCategory) {
+    override fun requestCategory(category: PermissionCategory) {
         neededCategories.update { categories ->
             categories.toMutableSet().also { it.add(category) }
         }
     }
 
-    suspend fun requestCategoryAndWaitForResult(category: PermissionsChecker.PermissionCategory): Boolean {
+    suspend fun requestCategoryAndWaitForResult(category: PermissionCategory): Boolean {
         requestCategory(category)
         return combineTransform(neededCategories, grantedCategories) { needed, granted ->
             if (needed.isEmpty()) {
@@ -126,7 +132,7 @@ class DefaultPermissionsManager @Inject constructor(
     }
 
     @Composable
-    override fun isGranted(category: PermissionsChecker.PermissionCategory): State<Boolean> =
+    override fun isGranted(category: PermissionCategory): State<Boolean> =
         grantedCategory[category]?.collectAsState() ?: remember { mutableStateOf(false) }
 
     private val currentGrantedPermissions get() = PermissionsChecker.grantedPermissions(context)

@@ -99,8 +99,11 @@ class PolarService : ForegroundableService<PolarBinder>() {
         if (mutableSearchState.value.status != SearchState.SearchStatus.NoSearch) {
             return
         }
-        val newStatus =
-            if (onlyPolar) SearchState.SearchStatus.OnlyPolar else SearchState.SearchStatus.AllDevices
+        val newStatus = if (onlyPolar) {
+            SearchState.SearchStatus.OnlyPolar
+        } else {
+            SearchState.SearchStatus.AllDevices
+        }
         searchJob?.cancel()
         mutableSearchState.value = SearchState(newStatus)
         api.setPolarFilter(onlyPolar)

@@ -26,9 +26,12 @@ import androidx.health.services.client.data.DataPointContainer
 import androidx.health.services.client.data.DataType
 import androidx.health.services.client.data.ExerciseEndReason
 import androidx.health.services.client.data.ExerciseInfo
+import androidx.health.services.client.data.ExerciseState as HealthExerciseState
 import androidx.health.services.client.data.ExerciseStateInfo
 import androidx.health.services.client.data.ExerciseTrackedStatus
+import androidx.health.services.client.data.ExerciseType as HealthExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
+import androidx.health.services.client.data.HeartRateAccuracy as HealthHRAccuracy
 import androidx.health.services.client.data.SampleDataPoint
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -37,6 +40,9 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.android.testing.UninstallModules
+import java.time.Duration
+import java.time.Instant
+import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.shareIn
@@ -71,12 +77,6 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.time.Duration
-import java.time.Instant
-import kotlin.test.assertEquals
-import androidx.health.services.client.data.ExerciseState as HealthExerciseState
-import androidx.health.services.client.data.ExerciseType as HealthExerciseType
-import androidx.health.services.client.data.HeartRateAccuracy as HealthHRAccuracy
 
 @HiltAndroidTest
 @Config(application = HiltTestApplication::class)
@@ -226,7 +226,7 @@ class ExerciseServiceTest {
         )
     }
 
-    private fun createExerciseUpdate(dataPointList: List<DataPoint<*>> = emptyList()): ExerciseUpdate =
+    private fun createExerciseUpdate(dataPointList: List<DataPoint<*>> = emptyList()) =
         mock<ExerciseUpdate>().apply {
             whenever(exerciseStateInfo).thenReturn(
                 ExerciseStateInfo(

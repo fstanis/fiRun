@@ -48,6 +48,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
+import java.time.Duration
+import java.time.Instant
+import kotlin.time.toKotlinDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import me.stanis.apps.fiRun.models.HeartRate
@@ -57,9 +60,6 @@ import me.stanis.apps.fiRun.ui.home.HomeScreen
 import me.stanis.apps.fiRun.ui.navigate
 import me.stanis.apps.fiRun.ui.popUpTo
 import me.stanis.apps.fiRun.ui.summary.SummaryScreen
-import java.time.Duration
-import java.time.Instant
-import kotlin.time.toKotlinDuration
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -145,9 +145,11 @@ object ExerciseScreen : Screen {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
+            val currentPaceFormatted = currentPace?.formatAsPace() ?: "…"
+            val averagePaceFormatted = averagePace?.formatAsPace() ?: "…"
             Text("❤ ${heartRate?.bpm ?: "…"} (${polarHr?.bpm ?: "…"})")
             Text(
-                "\uD83C\uDFC3 ${currentPace?.formatAsPace() ?: "…"} (${averagePace?.formatAsPace() ?: "…"})"
+                "\uD83C\uDFC3 $currentPaceFormatted ($averagePaceFormatted)"
             )
             Text("\uD83C\uDF82 ${calories ?: "…"}")
             Text("\uD83D\uDCCF ${formatDistance(distance)}")

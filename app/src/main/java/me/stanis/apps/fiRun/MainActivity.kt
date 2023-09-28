@@ -22,11 +22,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import me.stanis.apps.fiRun.ui.AppComposable
 import me.stanis.apps.fiRun.ui.Screen
 import me.stanis.apps.fiRun.ui.home.HomeScreen
 import me.stanis.apps.fiRun.util.permissions.DefaultPermissionsManager
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {

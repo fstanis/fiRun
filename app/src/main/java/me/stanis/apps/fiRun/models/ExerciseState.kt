@@ -36,7 +36,10 @@ data class ExerciseState(
     val lastStateTransitionTime: Instant? = null,
     val activeDuration: Duration? = null
 ) {
-    val isPartial get() = startTime == null || lastStateTransitionTime == null || activeDuration == null
+    val isPartial
+        get() = startTime == null ||
+            lastStateTransitionTime == null ||
+            activeDuration == null
 
     fun getDuration(now: Temporal): Duration? {
         if (lastStateTransitionTime == null || activeDuration == null) {

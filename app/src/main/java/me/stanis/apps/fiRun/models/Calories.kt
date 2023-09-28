@@ -18,10 +18,10 @@ package me.stanis.apps.fiRun.models
 
 import androidx.health.services.client.data.CumulativeDataPoint
 import androidx.health.services.client.data.DataType
-import me.stanis.apps.fiRun.services.exercise.instant
 import java.time.Duration
 import java.time.Instant
 import kotlin.math.roundToInt
+import me.stanis.apps.fiRun.services.exercise.instant
 
 data class Calories(
     val total: Int,

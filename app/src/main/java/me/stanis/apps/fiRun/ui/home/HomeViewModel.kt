@@ -42,7 +42,11 @@ class HomeViewModel @Inject constructor(
         lastConnectedDevice
     ) { exerciseStatus, polarConnectionState, lastConnectedDevice ->
         UiState(
-            homeStatus = if (exerciseStatus.status.isActive) UiState.HomeStatus.ExerciseInProgress else UiState.HomeStatus.Default,
+            homeStatus = if (exerciseStatus.status.isActive) {
+                UiState.HomeStatus.ExerciseInProgress
+            } else {
+                UiState.HomeStatus.Default
+            },
             connectionStatus = polarConnectionState.status,
             canConnectPolar = lastConnectedDevice != null
         )
