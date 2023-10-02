@@ -36,6 +36,8 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        testInstrumentationRunner = "me.stanis.apps.fiRun.HiltTestRunner"
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
     }
 
     buildTypes {
@@ -127,8 +129,16 @@ dependencies {
 
     implementation("androidx.wear:wear-remote-interactions:1.0.0")
 
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation("androidx.test:runner:1.5.0")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.5.2")
+    androidTestImplementation("com.google.dagger:hilt-android-testing:2.48")
+    androidTestImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
+    kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.48")
+
+    debugImplementation("androidx.test:core:1.5.0")
+    debugImplementation("androidx.compose.ui:ui-tooling:1.5.2")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.5.2")
     implementation(kotlin("reflect"))
 }
 

@@ -155,7 +155,7 @@ object ExerciseScreen : Screen {
             Text("\uD83D\uDCCF ${formatDistance(distance)}")
             Text("⏲ ${duration.formatElapsedTime()}")
             Button(onClick = onPauseExerciseClick) {
-                Icon(imageVector = Icons.Outlined.Pause, contentDescription = null)
+                Icon(imageVector = Icons.Outlined.Pause, contentDescription = "Pause exercise")
             }
         }
     }
@@ -179,10 +179,13 @@ object ExerciseScreen : Screen {
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
                 Button(onClick = onUnpauseExerciseClick) {
-                    Icon(imageVector = Icons.Outlined.PlayArrow, contentDescription = null)
+                    Icon(
+                        imageVector = Icons.Outlined.PlayArrow,
+                        contentDescription = "Continue exercise"
+                    )
                 }
                 Button(onClick = onEndExerciseClick) {
-                    Icon(imageVector = Icons.Outlined.Stop, contentDescription = null)
+                    Icon(imageVector = Icons.Outlined.Stop, contentDescription = "End exercise")
                 }
             }
         }

@@ -30,6 +30,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,8 +44,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import me.stanis.apps.fiRun.util.permissions.PermissionsChecker.PermissionCategory
 import me.stanis.apps.fiRun.util.permissions.PermissionsChecker.neededPermissions
-import javax.inject.Inject
-import javax.inject.Singleton
 
 @Singleton
 class DefaultPermissionsManager @Inject constructor(
