@@ -22,13 +22,13 @@ import android.app.Application
 import android.app.Service
 import android.content.ComponentName
 import android.content.Intent
-import android.os.Binder
 import androidx.test.core.app.ApplicationProvider.getApplicationContext
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -61,26 +61,25 @@ class ServiceBinderConnectionTest {
     @Test
     fun `runWhenConnected runs when binder is connected`() = runTest {
         shadowApp.setComponentNameAndServiceForBindService(
-            ComponentName(app, FakeService::class.java),
-            ValueBinder()
+            ComponentName(app, ValueBinderService::class.java),
+            ServiceBinderConnection.BinderWrapper(ValueBinderService())
         )
-        val underTest = testLifecycle.bindService<ValueBinder, FakeService>(app)
+        val underTest = testLifecycle.bindService<ValueBinderService>(app)
 
         underTest.runWhenConnected {
             assertEquals(10, it.returnValue(10))
         }
 
         assertNotNull(underTest.binder.value)
-        assertTrue(underTest.binder.value!!.isBinderAlive)
     }
 
     @Test
     fun `flowWhenConnected returns flow when binder is connected`() = runTest {
         shadowApp.setComponentNameAndServiceForBindService(
-            ComponentName(app, FakeService::class.java),
-            FlowBinder()
+            ComponentName(app, FlowBinderService::class.java),
+            ServiceBinderConnection.BinderWrapper(FlowBinderService())
         )
-        val underTest = testLifecycle.bindService<FlowBinder, FakeService>(app)
+        val underTest = testLifecycle.bindService<FlowBinderService>(app)
 
         val flow = underTest.flowWhenConnected(FlowBinder::flow)
 
@@ -90,10 +89,10 @@ class ServiceBinderConnectionTest {
     @Test
     fun `unbind disconnects and sets to null`() {
         shadowApp.setComponentNameAndServiceForBindService(
-            ComponentName(app, FakeService::class.java),
-            ValueBinder()
+            ComponentName(app, ValueBinderService::class.java),
+            ServiceBinderConnection.BinderWrapper(ValueBinderService())
         )
-        val underTest = testLifecycle.bindService<ValueBinder, FakeService>(app)
+        val underTest = testLifecycle.bindService<ValueBinderService>(app)
 
         assertEquals(underTest, shadowApp.boundServiceConnections.first())
 
@@ -102,15 +101,22 @@ class ServiceBinderConnectionTest {
         assertTrue(shadowApp.boundServiceConnections.isEmpty())
     }
 
-    class ValueBinder : Binder() {
-        fun returnValue(value: Int) = value
+    interface ValueBinder {
+        fun returnValue(value: Int): Int
     }
 
-    class FlowBinder : Binder() {
-        val flow = flowOf(1, 2, 3, 4, 5)
+    interface FlowBinder {
+        val flow: Flow<Int>
     }
 
-    class FakeService : Service() {
+    class ValueBinderService : Service(), ValueBinder {
+        override fun returnValue(value: Int) = value
+
+        override fun onBind(intent: Intent?) = null
+    }
+
+    class FlowBinderService : Service(), FlowBinder {
+        override val flow = flowOf(1, 2, 3, 4, 5)
         override fun onBind(intent: Intent?) = null
     }
 }

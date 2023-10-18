@@ -39,7 +39,7 @@ internal object BindersModule {
     fun providePolarBinder(
         @ApplicationContext context: Context,
         lifecycle: ActivityRetainedLifecycle
-    ): BinderConnection<PolarBinder> = lifecycle.bindService<PolarBinder, PolarService>(
+    ): BinderConnection<out PolarBinder> = lifecycle.bindService<PolarService>(
         context
     )
 
@@ -48,7 +48,7 @@ internal object BindersModule {
     fun provideExerciseBinder(
         @ApplicationContext context: Context,
         lifecycle: ActivityRetainedLifecycle
-    ): BinderConnection<ExerciseBinder> = lifecycle.bindService<ExerciseBinder, ExerciseService>(
+    ): BinderConnection<out ExerciseBinder> = lifecycle.bindService<ExerciseService>(
         context
     )
 }

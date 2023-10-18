@@ -68,6 +68,7 @@ android {
         }
     }
     testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
         unitTests {
             isIncludeAndroidResources = true
         }
@@ -134,6 +135,8 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.5.2")
     androidTestImplementation("com.google.dagger:hilt-android-testing:2.48")
     androidTestImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.8.22")
+    androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0-alpha04")
+    androidTestUtil("androidx.test:orchestrator:1.4.2")
     kaptAndroidTest("com.google.dagger:hilt-android-compiler:2.48")
 
     debugImplementation("androidx.test:core:1.5.0")

@@ -19,7 +19,7 @@
 package me.stanis.apps.fiRun.services.polar
 
 import android.app.Notification
-import android.os.Binder
+import androidx.lifecycle.lifecycleScope
 import com.polar.sdk.api.PolarBleApi
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -29,8 +29,6 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -46,13 +44,13 @@ import me.stanis.apps.fiRun.models.HeartRate
 import me.stanis.apps.fiRun.models.HrDeviceInfo
 import me.stanis.apps.fiRun.models.enums.HrDeviceState
 import me.stanis.apps.fiRun.persistence.ExerciseWriter
-import me.stanis.apps.fiRun.services.ForegroundableService
+import me.stanis.apps.fiRun.util.binder.BindableForegroundService
 import me.stanis.apps.fiRun.util.clock.Clock
 import me.stanis.apps.fiRun.util.errors.ServiceError
 import me.stanis.apps.fiRun.util.notifications.Notifications
 
 @AndroidEntryPoint
-class PolarService : ForegroundableService<PolarBinder>() {
+class PolarService : BindableForegroundService(), PolarBinder {
     @Inject
     lateinit var api: PolarBleApi
 
@@ -65,9 +63,9 @@ class PolarService : ForegroundableService<PolarBinder>() {
     @Inject
     lateinit var clock: Clock
 
-    private val mutableSearchState = MutableStateFlow(SearchState.NO_SEARCH)
+    override val searchState = MutableStateFlow(SearchState.NO_SEARCH)
     private var searchJob: Job? = null
-    private val errors = MutableSharedFlow<ServiceError>(
+    override val errors = MutableSharedFlow<ServiceError>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
@@ -77,26 +75,8 @@ class PolarService : ForegroundableService<PolarBinder>() {
             "Polar info"
         )
 
-    override fun onCoroutineException(throwable: Throwable) {
-        errors.tryEmit(ServiceError.WithThrowable(throwable))
-    }
-
-    override val binder: PolarBinder = object : Binder(), PolarBinder {
-        override val connectionState: StateFlow<ConnectionState> get() = serviceState
-        override val searchState: StateFlow<SearchState> = mutableSearchState.asStateFlow()
-        override val heartRateUpdates get() = this@PolarService.heartRateUpdates
-        override val errors get() = this@PolarService.errors
-        override fun startDeviceSearch(onlyPolar: Boolean) =
-            this@PolarService.startDeviceSearch(onlyPolar)
-
-        override fun stopDeviceSearch() = this@PolarService.stopDeviceSearch()
-        override fun connectDevice(identifier: String) = this@PolarService.connectDevice(identifier)
-        override fun disconnectDevice(identifier: String) =
-            this@PolarService.disconnectDevice(identifier)
-    }
-
-    private fun startDeviceSearch(onlyPolar: Boolean) {
-        if (mutableSearchState.value.status != SearchState.SearchStatus.NoSearch) {
+    override fun startDeviceSearch(onlyPolar: Boolean) {
+        if (searchState.value.status != SearchState.SearchStatus.NoSearch) {
             return
         }
         val newStatus = if (onlyPolar) {
@@ -105,24 +85,24 @@ class PolarService : ForegroundableService<PolarBinder>() {
             SearchState.SearchStatus.AllDevices
         }
         searchJob?.cancel()
-        mutableSearchState.value = SearchState(newStatus)
+        searchState.value = SearchState(newStatus)
         api.setPolarFilter(onlyPolar)
-        searchJob = scope.launch {
+        searchJob = lifecycleScope.launch {
             api.searchForDevice().doOnError { errors.tryEmit(ServiceError.WithThrowable(it)) }
                 .asFlow()
                 .map(HrDeviceInfo::fromPolarInfo)
                 .collect { device ->
-                    mutableSearchState.update { it.withDevice(device) }
+                    searchState.update { it.withDevice(device) }
                 }
         }
     }
 
-    private fun stopDeviceSearch() {
-        mutableSearchState.update { it.copy(status = SearchState.SearchStatus.NoSearch) }
+    override fun stopDeviceSearch() {
+        searchState.update { it.copy(status = SearchState.SearchStatus.NoSearch) }
         searchJob?.cancel()
     }
 
-    private fun connectDevice(identifier: String) {
+    override fun connectDevice(identifier: String) {
         api.connectToDevice(identifier)
         val otherDevices = connectedDevices.value.map { it.deviceId }.filter { it != identifier }
         for (deviceId in otherDevices) {
@@ -130,22 +110,22 @@ class PolarService : ForegroundableService<PolarBinder>() {
         }
     }
 
-    private fun disconnectDevice(identifier: String) {
+    override fun disconnectDevice(identifier: String) {
         api.disconnectFromDevice(identifier)
     }
 
     private val connectedDevices = MutableStateFlow<Set<HrDeviceInfo>>(emptySet())
 
-    private val serviceState = connectedDevices.map {
+    override val connectionState = connectedDevices.map {
         ConnectionState(it)
     }
-        .stateIn(scope, SharingStarted.Eagerly, ConnectionState.INITIAL)
+        .stateIn(lifecycleScope, SharingStarted.Eagerly, ConnectionState.INITIAL)
 
     private val hasConnectedDevices = connectedDevices.map {
         it.any { device -> device.state == HrDeviceState.CONNECTED }
     }.conflate().distinctUntilChanged()
 
-    private val heartRateUpdates = connectedDevices
+    override val heartRateUpdates = connectedDevices
         .map {
             it
                 .filter { device -> device.canStreamHr }
@@ -173,7 +153,7 @@ class PolarService : ForegroundableService<PolarBinder>() {
                 }.toTypedArray()
             )
         }
-        .shareIn(scope, SharingStarted.WhileSubscribed())
+        .shareIn(lifecycleScope, SharingStarted.WhileSubscribed())
 
     override fun onCreate() {
         super.onCreate()
@@ -183,14 +163,10 @@ class PolarService : ForegroundableService<PolarBinder>() {
                 connectedDevices.value = it.values.toSet()
             }
         )
-        scope.launch {
+        lifecycleScope.launch {
             launch {
                 hasConnectedDevices.collect {
-                    if (it) {
-                        moveToForeground()
-                    } else {
-                        removeFromForeground()
-                    }
+                    shouldForeground = it
                 }
             }
             launch { exerciseWriter.writeHeartRateUpdates(heartRateUpdates) }

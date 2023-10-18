@@ -30,7 +30,7 @@ import me.stanis.apps.fiRun.util.binder.BinderConnection
 @ActivityRetainedScoped
 class DeviceManager @Inject constructor(
     private val deviceDao: DeviceDao,
-    private val polarBinder: BinderConnection<PolarBinder>
+    private val polarBinder: BinderConnection<out PolarBinder>
 ) {
     private val connectionState = polarBinder.flowWhenConnected(PolarBinder::connectionState)
     val searchState = polarBinder.flowWhenConnected(PolarBinder::searchState)

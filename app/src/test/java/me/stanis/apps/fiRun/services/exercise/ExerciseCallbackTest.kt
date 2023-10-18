@@ -20,19 +20,25 @@ package me.stanis.apps.fiRun.services.exercise
 
 import androidx.health.services.client.ExerciseClient
 import androidx.health.services.client.ExerciseUpdateCallback
+import androidx.health.services.client.data.ExerciseUpdate
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
-import me.stanis.apps.fiRun.services.exercise.ExerciseCallback.Companion.setExerciseUpdateCallback
+import me.stanis.apps.fiRun.services.exercise.ExerciseCallback.Companion.setExerciseCallback
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
@@ -42,7 +48,7 @@ class ExerciseCallbackTest {
 
     @Test
     fun `onRegistered resumes continuation`() = runTest {
-        val task = async { client.setExerciseUpdateCallback {} }
+        val task = async { client.setExerciseCallback() }
         runCurrent()
         verify(client).setUpdateCallback(callbackCaptor.capture())
         val callback = callbackCaptor.firstValue
@@ -54,8 +60,9 @@ class ExerciseCallbackTest {
 
     @Test
     fun `onRegistrationFailed fails continuation`() = runTest {
-        val task =
-            async(SupervisorJob(backgroundScope.coroutineContext.job)) { client.setExerciseUpdateCallback {} }
+        val task = async(SupervisorJob(backgroundScope.coroutineContext.job)) {
+            client.setExerciseCallback()
+        }
         runCurrent()
         verify(client).setUpdateCallback(callbackCaptor.capture())
         val callback = callbackCaptor.firstValue
@@ -64,5 +71,25 @@ class ExerciseCallbackTest {
         callback.onRegistrationFailed(throwable)
         runCurrent()
         assertEquals(throwable, task.getCompletionExceptionOrNull())
+    }
+
+    @Test
+    fun `onExerciseUpdateReceived emits update`() = runTest {
+        whenever(client.setUpdateCallback(any())).thenAnswer {
+            val callback = it.getArgument<ExerciseUpdateCallback>(0)
+            callback.onRegistered()
+        }
+        val underTest = client.setExerciseCallback()
+        val updateHistory = underTest.exerciseUpdates.shareIn(
+            backgroundScope,
+            SharingStarted.Eagerly,
+            replay = 10
+        )
+        runCurrent()
+
+        val exerciseUpdate = mock<ExerciseUpdate>()
+        underTest.onExerciseUpdateReceived(exerciseUpdate)
+        runCurrent()
+        assertContains(updateHistory.replayCache, exerciseUpdate)
     }
 }

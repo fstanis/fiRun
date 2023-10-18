@@ -26,13 +26,26 @@ import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 
 internal class ExerciseCallback private constructor(
-    private val continuation: Continuation<ExerciseUpdateCallback>,
-    private val onExerciseUpdate: (ExerciseUpdate) -> Unit
-) : ExerciseUpdateCallback {
+    private val continuation: Continuation<ExerciseCallback>
+) :
+    ExerciseUpdateCallback {
+    val exerciseUpdates =
+        MutableSharedFlow<ExerciseUpdate>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
+    val dataTypeAvailability = MutableStateFlow(emptyMap<DataType<*, *>, Availability>())
+
     override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
-        onExerciseUpdate(update)
+        exerciseUpdates.tryEmit(update)
+    }
+
+    override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {
+        dataTypeAvailability.update { map ->
+            map.toMutableMap().also { it[dataType] = availability }
+        }
     }
 
     override fun onRegistered() {
@@ -44,15 +57,14 @@ internal class ExerciseCallback private constructor(
     }
 
     // unused
-    override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {}
     override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) {}
 
     companion object {
-        suspend fun ExerciseClient.setExerciseUpdateCallback(
-            onExerciseUpdate: (ExerciseUpdate) -> Unit
-        ): ExerciseUpdateCallback =
+        private const val EXTRA_BUFFER_CAPACITY = 64
+
+        suspend fun ExerciseClient.setExerciseCallback(): ExerciseCallback =
             suspendCoroutine {
-                setUpdateCallback(ExerciseCallback(it, onExerciseUpdate))
+                setUpdateCallback(ExerciseCallback(it))
             }
     }
 }

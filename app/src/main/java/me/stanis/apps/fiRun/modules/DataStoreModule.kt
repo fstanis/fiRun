@@ -24,25 +24,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 import me.stanis.apps.fiRun.database.DataStores
-import me.stanis.apps.fiRun.database.datastore.CurrentExerciseData
-import me.stanis.apps.fiRun.database.datastore.SettingsData
 
 @Module
 @InstallIn(SingletonComponent::class)
 internal object DataStoreModule {
     @Singleton
     @Provides
-    fun provideSettings(@ApplicationContext context: Context) = DataStores.create(
-        context,
-        SettingsData.EMPTY,
-        SettingsData.serializer()
-    )
+    fun provideSettings(@ApplicationContext context: Context) = DataStores.settingsData(context)
 
     @Singleton
     @Provides
-    fun provideCurrentExerciseData(@ApplicationContext context: Context) = DataStores.create(
-        context,
-        CurrentExerciseData.EMPTY,
-        CurrentExerciseData.serializer()
-    )
+    fun provideCurrentExerciseData(@ApplicationContext context: Context) =
+        DataStores.currentExerciseData(context)
 }

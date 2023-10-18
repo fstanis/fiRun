@@ -111,7 +111,7 @@ class ExerciseServiceTest {
     private val testDispatcher = StandardTestDispatcher()
     private val testScope = TestScope(testDispatcher)
 
-    private lateinit var binder: ServiceBinderConnection<ExerciseBinder>
+    private lateinit var binder: ServiceBinderConnection<ExerciseService>
     private lateinit var mockCallback: ExerciseUpdateCallback
 
     @Before
@@ -125,7 +125,7 @@ class ExerciseServiceTest {
                 )
             )
         )
-        binder = createBinderConnection<ExerciseBinder, ExerciseService>()
+        binder = createBinderConnection<ExerciseService>()
         val captor = argumentCaptor<ExerciseUpdateCallback>()
         verify(mockExerciseClient).setUpdateCallback(captor.capture())
         mockCallback = captor.firstValue

@@ -16,7 +16,6 @@
 
 package me.stanis.apps.fiRun.services.exercise
 
-import android.os.IBinder
 import kotlinx.coroutines.flow.SharedFlow
 import me.stanis.apps.fiRun.models.AveragePace
 import me.stanis.apps.fiRun.models.Calories
@@ -27,7 +26,7 @@ import me.stanis.apps.fiRun.models.HeartRate
 import me.stanis.apps.fiRun.models.enums.ExerciseType
 import me.stanis.apps.fiRun.util.errors.ServiceError
 
-interface ExerciseBinder : IBinder {
+interface ExerciseBinder {
     suspend fun startExercise(type: ExerciseType, includeHeartRate: Boolean)
     suspend fun endExercise()
     suspend fun resetExercise()

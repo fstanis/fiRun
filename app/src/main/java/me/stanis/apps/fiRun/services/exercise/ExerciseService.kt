@@ -19,11 +19,9 @@
 package me.stanis.apps.fiRun.services.exercise
 
 import android.app.Notification
-import android.os.Binder
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.health.services.client.ExerciseClient
-import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.HealthServicesException
 import androidx.health.services.client.clearUpdateCallback
 import androidx.health.services.client.data.ExerciseUpdate
@@ -32,15 +30,19 @@ import androidx.health.services.client.getCurrentExerciseInfo
 import androidx.health.services.client.pauseExercise
 import androidx.health.services.client.resumeExercise
 import androidx.health.services.client.startExercise
+import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.stanis.apps.fiRun.database.datastore.SettingsData
@@ -55,14 +57,14 @@ import me.stanis.apps.fiRun.models.enums.ExerciseStatus
 import me.stanis.apps.fiRun.models.enums.ExerciseType
 import me.stanis.apps.fiRun.models.enums.HeartRateAccuracy
 import me.stanis.apps.fiRun.persistence.ExerciseWriter
-import me.stanis.apps.fiRun.services.ForegroundableService
-import me.stanis.apps.fiRun.services.exercise.ExerciseCallback.Companion.setExerciseUpdateCallback
+import me.stanis.apps.fiRun.services.exercise.ExerciseCallback.Companion.setExerciseCallback
+import me.stanis.apps.fiRun.util.binder.BindableForegroundService
 import me.stanis.apps.fiRun.util.clock.Clock
 import me.stanis.apps.fiRun.util.errors.ServiceError
 import me.stanis.apps.fiRun.util.notifications.Notifications
 
 @AndroidEntryPoint
-class ExerciseService : ForegroundableService<ExerciseBinder>() {
+class ExerciseService : BindableForegroundService(), ExerciseBinder {
     @Inject
     lateinit var exerciseClient: ExerciseClient
 
@@ -80,52 +82,31 @@ class ExerciseService : ForegroundableService<ExerciseBinder>() {
 
     private lateinit var onlyHighHrAccuracy: StateFlow<Boolean>
 
-    private val mutableStatus =
+    override val stateUpdates =
         MutableSharedFlow<ExerciseState>(replay = 1, extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val mutableHeartRate =
+    override val heartRateUpdates =
         MutableSharedFlow<HeartRate>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val mutableDistance =
+    override val distanceUpdates =
         MutableSharedFlow<Distance>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val mutableCalories =
+    override val caloriesUpdates =
         MutableSharedFlow<Calories>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val mutableCurrentPace =
+    override val currentPaceUpdates =
         MutableSharedFlow<CurrentPace>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val mutableAveragePace =
+    override val averagePaceUpdates =
         MutableSharedFlow<AveragePace>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val mutableSpeed =
+    private val speedUpdates =
         MutableSharedFlow<Speed>(extraBufferCapacity = EXTRA_BUFFER_CAPACITY)
-    private val errors = MutableSharedFlow<ServiceError>(
+    override val errors = MutableSharedFlow<ServiceError>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
 
+    private val statusUpdates = stateUpdates.map { it.status }.distinctUntilChanged()
+
     override val notification: Notification
         get() = notifications.createExerciseNotification("Exercise in progress")
 
-    override fun onCoroutineException(throwable: Throwable) {
-        errors.tryEmit(ServiceError.WithThrowable(throwable))
-    }
-
-    override val binder: ExerciseBinder = object : Binder(), ExerciseBinder {
-        override suspend fun startExercise(type: ExerciseType, includeHeartRate: Boolean) =
-            this@ExerciseService.startExercise(type, includeHeartRate)
-
-        override suspend fun endExercise() = this@ExerciseService.endExercise()
-        override suspend fun resetExercise() = this@ExerciseService.resetExercise()
-        override suspend fun pauseExercise() = this@ExerciseService.pauseExercise()
-        override suspend fun resumeExercise() = this@ExerciseService.resumeExercise()
-        override val stateUpdates: SharedFlow<ExerciseState> get() = mutableStatus
-        override val heartRateUpdates: SharedFlow<HeartRate> get() = mutableHeartRate
-        override val distanceUpdates: SharedFlow<Distance> get() = mutableDistance
-        override val caloriesUpdates: SharedFlow<Calories> get() = mutableCalories
-        override val currentPaceUpdates: SharedFlow<CurrentPace> get() = mutableCurrentPace
-        override val averagePaceUpdates: SharedFlow<AveragePace> get() = mutableAveragePace
-        override val errors: SharedFlow<ServiceError> get() = this@ExerciseService.errors
-    }
-
-    private var exerciseCallback: ExerciseUpdateCallback? = null
-
-    private suspend fun startExercise(type: ExerciseType, includeHeartRate: Boolean) {
+    override suspend fun startExercise(type: ExerciseType, includeHeartRate: Boolean) {
         clearFlows()
         exerciseWriter.create(type)
         exerciseClient.tryInvoke {
@@ -133,107 +114,94 @@ class ExerciseService : ForegroundableService<ExerciseBinder>() {
         }
     }
 
-    private suspend fun endExercise() {
+    override suspend fun endExercise() {
         exerciseClient.tryInvoke(ExerciseClient::endExercise)
     }
 
-    private suspend fun resetExercise() {
-        mutableStatus.emit(ExerciseState.createWithStatus(ExerciseStatus.NotStarted, clock))
+    override suspend fun resetExercise() {
+        stateUpdates.emit(ExerciseState.createWithStatus(ExerciseStatus.NotStarted, clock))
     }
 
-    private suspend fun pauseExercise() {
+    override suspend fun pauseExercise() {
         exerciseClient.tryInvoke(ExerciseClient::pauseExercise)
     }
 
-    private suspend fun resumeExercise() {
+    override suspend fun resumeExercise() {
         exerciseClient.tryInvoke(ExerciseClient::resumeExercise)
     }
 
     private fun clearFlows() {
-        mutableStatus.resetReplayCache()
-        mutableHeartRate.resetReplayCache()
-        mutableDistance.resetReplayCache()
-        mutableCalories.resetReplayCache()
-        mutableCurrentPace.resetReplayCache()
-        mutableAveragePace.resetReplayCache()
-        mutableSpeed.resetReplayCache()
+        stateUpdates.resetReplayCache()
+        heartRateUpdates.resetReplayCache()
+        distanceUpdates.resetReplayCache()
+        caloriesUpdates.resetReplayCache()
+        currentPaceUpdates.resetReplayCache()
+        averagePaceUpdates.resetReplayCache()
+        speedUpdates.resetReplayCache()
     }
 
-    private fun onExerciseUpdateReceived(update: ExerciseUpdate) {
-        val status = ExerciseState.fromExerciseUpdate(update)
-        val duration = status.getDuration(clock.now())
-        mutableStatus.emitOrLog(status)
+    private suspend fun processExerciseUpdate(update: ExerciseUpdate) {
+        val state = ExerciseState.fromExerciseUpdate(update)
+        stateUpdates.emit(state)
+        val duration = state.getDuration(clock.now())
         if (duration != null) {
             update.heartRateSamples
                 .mapNotNull { HeartRate.fromExercise(it, duration, clock) }
                 .filter { !onlyHighHrAccuracy.value || it.accuracy == HeartRateAccuracy.High }
                 .forEach {
-                    mutableHeartRate.emitOrLog(it)
+                    heartRateUpdates.emit(it)
                 }
             update.speedSamples
                 .forEach {
                     val currentPace = CurrentPace.fromExerciseSpeed(it, duration, clock)
                     val speed = Speed.fromExercise(it, duration, clock)
                     if (currentPace != null) {
-                        mutableCurrentPace.emitOrLog(currentPace)
+                        currentPaceUpdates.emit(currentPace)
                     }
                     if (speed != null) {
-                        mutableSpeed.emitOrLog(speed)
+                        speedUpdates.emit(speed)
                     }
                 }
             Distance.fromExercise(update.totalDistance, duration)
-                ?.let { mutableDistance.emitOrLog(it) }
+                ?.let { distanceUpdates.emit(it) }
             Calories.fromExercise(update.totalCalories, duration)
-                ?.let { mutableCalories.emitOrLog(it) }
+                ?.let { caloriesUpdates.emit(it) }
             AveragePace.fromExerciseSpeed(update.speedStats, duration)
-                ?.let { mutableAveragePace.emitOrLog(it) }
+                ?.let { averagePaceUpdates.emit(it) }
         } else {
             Log.e("ExerciseService", "Received update with no duration")
         }
         if (update.isEndedInError) {
-            errors.emitOrLog(ServiceError.WithMessage("Exercise prematurely ended"))
+            errors.emit(ServiceError.WithMessage("Exercise prematurely ended"))
         }
+    }
+
+    private fun processStatusChange(exerciseStatus: ExerciseStatus) {
+        shouldForeground = exerciseStatus == ExerciseStatus.InProgress
+    }
+
+    private suspend fun startWriters() = coroutineScope {
+        launch { exerciseWriter.writeStateUpdates(stateUpdates) }
+        launch { exerciseWriter.writeHeartRateUpdates(heartRateUpdates) }
+        launch { exerciseWriter.writeDistanceUpdates(distanceUpdates) }
+        launch { exerciseWriter.writeSpeedUpdates(speedUpdates) }
     }
 
     override fun onCreate() {
         super.onCreate()
-        scope.launch {
+        lifecycleScope.launch {
             onlyHighHrAccuracy = settings.data.map { it.onlyHighHrAccuracy }.stateIn(this)
             val exerciseInfo = exerciseClient.getCurrentExerciseInfo()
-            mutableStatus.emitOrLog(ExerciseState.fromExerciseInfo(exerciseInfo, clock))
-            exerciseCallback = exerciseClient.setExerciseUpdateCallback(::onExerciseUpdateReceived)
-            launch {
-                mutableStatus.collect {
-                    Log.i("ExerciseService", it.toString())
-                }
+            stateUpdates.emit(ExerciseState.fromExerciseInfo(exerciseInfo, clock))
+            val exerciseCallback = exerciseClient.setExerciseCallback()
+            try {
+                exerciseCallback.exerciseUpdates.onEach(::processExerciseUpdate).launchIn(this)
+                statusUpdates.onEach(::processStatusChange).launchIn(this)
+                startWriters()
+                awaitCancellation()
+            } finally {
+                exerciseClient.clearUpdateCallback(exerciseCallback)
             }
-            val exerciseState = mutableStatus.map { it.status }.stateIn(this)
-            launch {
-                exerciseState.collect {
-                    if (it == ExerciseStatus.InProgress) {
-                        moveToForeground()
-                    } else {
-                        removeFromForeground()
-                    }
-                }
-            }
-            launch { exerciseWriter.writeStateUpdates(mutableStatus) }
-            launch { exerciseWriter.writeHeartRateUpdates(mutableHeartRate) }
-            launch { exerciseWriter.writeDistanceUpdates(mutableDistance) }
-            launch { exerciseWriter.writeSpeedUpdates(mutableSpeed) }
-        }
-    }
-
-    override fun onDestroy() {
-        scope.launch(NonCancellable) {
-            exerciseCallback?.let { exerciseClient.clearUpdateCallback(it) }
-        }
-        super.onDestroy()
-    }
-
-    private fun <T> MutableSharedFlow<T>.emitOrLog(value: T) {
-        if (!tryEmit(value)) {
-            Log.e("ExerciseService", "Failed to emit update")
         }
     }
 

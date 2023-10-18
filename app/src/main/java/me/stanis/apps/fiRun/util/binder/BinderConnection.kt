@@ -18,7 +18,6 @@
 
 package me.stanis.apps.fiRun.util.binder
 
-import android.os.IBinder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +26,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 
-abstract class BinderConnection<T : IBinder> {
+abstract class BinderConnection<T> {
     abstract val binder: StateFlow<T?>
 
     suspend fun <R> runWhenConnected(command: suspend (T) -> R): R =

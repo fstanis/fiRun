@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 @file:OptIn(ExperimentalTestApi::class)
 
 package me.stanis.apps.fiRun.exercise
@@ -16,16 +32,19 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.test.runTest
 import me.stanis.apps.fiRun.HealthServicesTestUtil
 import me.stanis.apps.fiRun.MainActivity
+import me.stanis.apps.fiRun.ServiceTestUtil
 import me.stanis.apps.fiRun.database.dao.ExerciseDao
 import me.stanis.apps.fiRun.database.datastore.CurrentExerciseData
 import me.stanis.apps.fiRun.models.enums.ExerciseType
@@ -50,7 +69,8 @@ class ExerciseTest {
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val hsTestUtil = HealthServicesTestUtil(instrumentation.targetContext)
+    private val hsTestUtil = HealthServicesTestUtil(instrumentation)
+    private val serviceTestUtil = ServiceTestUtil(instrumentation)
 
     @Inject
     lateinit var currentExerciseData: DataStore<CurrentExerciseData>
@@ -62,6 +82,7 @@ class ExerciseTest {
     fun setUp() {
         hiltRule.inject()
         hsTestUtil.enableSynthetic()
+        Thread.sleep(5_000)
     }
 
     @After
@@ -72,7 +93,7 @@ class ExerciseTest {
     @Test
     fun startingExerciseSetsExerciseId() = runTest {
         val currentExercise = currentExerciseData.data.stateIn(backgroundScope)
-        composeTestRule.waitUntilDoesNotExist(hasTestTag("loading"))
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("loading"), timeoutMillis = 10_000)
 
         assertNull(currentExercise.value.id)
         composeTestRule.onNodeWithText("Indoor run").performClick()
@@ -82,9 +103,20 @@ class ExerciseTest {
     }
 
     @Test
+    fun startingExercisePutsServiceInForeground() = runTest {
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("loading"), timeoutMillis = 10_000)
+
+        assertFalse(serviceTestUtil.exerciseServiceInfo.foreground)
+        composeTestRule.onNodeWithText("Indoor run").performClick()
+        currentExerciseData.data.filter { it.inProgress }.first()
+
+        assertTrue(serviceTestUtil.exerciseServiceInfo.foreground)
+    }
+
+    @Test
     fun exerciseAddsDataToRoom() = runTest(timeout = 30.seconds) {
         hsTestUtil.startExercise(ExerciseType.IndoorRun)
-        composeTestRule.waitUntilDoesNotExist(hasTestTag("loading"))
+        composeTestRule.waitUntilDoesNotExist(hasTestTag("loading"), timeoutMillis = 10_000)
         composeTestRule.onNodeWithText("Indoor run").performClick()
         val currentExerciseId = currentExerciseData.data.mapNotNull { it.id }.first()
 

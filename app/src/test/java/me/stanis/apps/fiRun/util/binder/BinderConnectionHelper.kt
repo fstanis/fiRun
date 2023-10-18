@@ -18,23 +18,22 @@ package me.stanis.apps.fiRun.util.binder
 
 import android.app.Application
 import android.content.ComponentName
-import android.os.IBinder
 import androidx.test.core.app.ApplicationProvider.getApplicationContext
-import me.stanis.apps.fiRun.services.ForegroundableService
 import me.stanis.apps.fiRun.util.binder.ServiceBinderConnection.Companion.bindService
 import org.robolectric.Robolectric.setupService
 import org.robolectric.Shadows.shadowOf
 
 object BinderConnectionHelper {
-    inline fun <reified T : IBinder, reified S : ForegroundableService<T>> createBinderConnection(): ServiceBinderConnection<T> {
+    inline fun <reified S : BindableForegroundService>
+    createBinderConnection(): ServiceBinderConnection<S> {
         val app: Application = getApplicationContext()
         val shadowApp = shadowOf(app)
         val service = setupService(S::class.java)
         shadowApp.setBindServiceCallsOnServiceConnectedDirectly(true)
         shadowApp.setComponentNameAndServiceForBindService(
             ComponentName(app, S::class.java),
-            service.binder
+            ServiceBinderConnection.BinderWrapper(service)
         )
-        return ServiceBinderConnection(app, T::class).also { bindService(app, S::class, it) }
+        return ServiceBinderConnection<S>(app).also { bindService(app, S::class, it) }
     }
 }

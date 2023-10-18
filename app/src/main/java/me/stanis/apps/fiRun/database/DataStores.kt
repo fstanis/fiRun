@@ -17,20 +17,27 @@
 package me.stanis.apps.fiRun.database
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.core.DataStoreFactory
-import androidx.datastore.dataStoreFile
+import androidx.datastore.dataStore
 import kotlinx.serialization.KSerializer
+import me.stanis.apps.fiRun.database.datastore.CurrentExerciseData
+import me.stanis.apps.fiRun.database.datastore.SettingsData
 import me.stanis.apps.fiRun.database.util.serializers.CborSerializer
 
 object DataStores {
-    inline fun <reified T> create(
-        context: Context,
+    fun settingsData(context: Context) = context.settingsData
+    fun currentExerciseData(context: Context) = context.currentExerciseData
+
+    private val Context.settingsData by createDelegate(
+        SettingsData.EMPTY,
+        SettingsData.serializer()
+    )
+    private val Context.currentExerciseData by createDelegate(
+        CurrentExerciseData.EMPTY,
+        CurrentExerciseData.serializer()
+    )
+
+    private inline fun <reified T> createDelegate(
         defaultValue: T,
         serializer: KSerializer<T>
-    ): DataStore<T> =
-        DataStoreFactory.create(
-            CborSerializer(defaultValue, serializer),
-            produceFile = { context.dataStoreFile(T::class.simpleName!!) }
-        )
+    ) = dataStore(T::class.simpleName!!, CborSerializer(defaultValue, serializer))
 }

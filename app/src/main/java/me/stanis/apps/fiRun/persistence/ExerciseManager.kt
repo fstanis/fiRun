@@ -26,8 +26,8 @@ import me.stanis.apps.fiRun.util.binder.BinderConnection
 
 @ActivityRetainedScoped
 class ExerciseManager @Inject constructor(
-    private val exerciseBinder: BinderConnection<ExerciseBinder>,
-    polarBinder: BinderConnection<PolarBinder>
+    private val exerciseBinder: BinderConnection<out ExerciseBinder>,
+    polarBinder: BinderConnection<out PolarBinder>
 ) {
     val exerciseState = exerciseBinder.flowWhenConnected(ExerciseBinder::stateUpdates)
     val polarConnectionState = polarBinder.flowWhenConnected(PolarBinder::connectionState)

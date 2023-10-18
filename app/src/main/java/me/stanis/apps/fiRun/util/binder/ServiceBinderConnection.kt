@@ -23,44 +23,44 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Binder
 import android.os.IBinder
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.RetainedLifecycle
 import java.io.Closeable
 import kotlin.reflect.KClass
-import kotlin.reflect.safeCast
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class ServiceBinderConnection<T : IBinder>(
-    private val context: Context,
-    private val type: KClass<out T>
+class ServiceBinderConnection<T>(
+    private val context: Context
 ) : ServiceConnection, Closeable, BinderConnection<T>() {
     private val mutableBinder = MutableStateFlow<T?>(null)
     override val binder = mutableBinder.asStateFlow()
 
     fun unbind() {
+        mutableBinder.value = null
         context.unbindService(this)
     }
 
     override fun close() = unbind()
 
     override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-        type.safeCast(service)?.also {
-            mutableBinder.value = it
-        }
+        mutableBinder.value = ((service as BinderWrapper<*>).binder as T)
     }
 
     override fun onServiceDisconnected(name: ComponentName?) {
         mutableBinder.value = null
     }
 
+    class BinderWrapper<T>(val binder: T) : Binder()
+
     companion object {
-        inline fun <reified T : IBinder, reified S : Service> RetainedLifecycle.bindService(
+        inline fun <reified S : Service> RetainedLifecycle.bindService(
             context: Context
-        ): ServiceBinderConnection<T> {
-            val connection = ServiceBinderConnection(context, T::class)
+        ): ServiceBinderConnection<S> {
+            val connection = ServiceBinderConnection<S>(context)
             bindService(context, S::class, connection)
             addOnClearedListener {
                 connection.unbind()
@@ -68,10 +68,10 @@ class ServiceBinderConnection<T : IBinder>(
             return connection
         }
 
-        inline fun <reified T : IBinder, reified S : Service> ViewModel.bindService(
+        inline fun <reified S : Service> ViewModel.bindService(
             context: Context
-        ): ServiceBinderConnection<T> {
-            val connection = ServiceBinderConnection(context, T::class)
+        ): ServiceBinderConnection<S> {
+            val connection = ServiceBinderConnection<S>(context)
             bindService(context, S::class, connection)
             addCloseable(connection)
             return connection

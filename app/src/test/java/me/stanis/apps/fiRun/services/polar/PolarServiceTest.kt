@@ -26,7 +26,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.android.testing.UninstallModules
-import io.reactivex.rxjava3.processors.UnicastProcessor
+import io.reactivex.rxjava3.processors.PublishProcessor
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -75,13 +75,13 @@ class PolarServiceTest {
 
     private val testScope = TestScope()
 
-    private lateinit var binder: ServiceBinderConnection<PolarBinder>
+    private lateinit var binder: ServiceBinderConnection<PolarService>
     private lateinit var mockCallback: PolarBleApiCallback
 
     @Before
     fun setUp() {
         hiltRule.inject()
-        binder = createBinderConnection<PolarBinder, PolarService>()
+        binder = createBinderConnection<PolarService>()
         val captor = argumentCaptor<PolarBleApiCallback>()
         verify(mockApi).setApiCallback(captor.capture())
         mockCallback = captor.firstValue
@@ -182,7 +182,8 @@ class PolarServiceTest {
     fun `startDeviceSearch returns flow of detected devices`() = testScope.runTest {
         val device1 = PolarDeviceInfo("deviceId1", "address1", -80, "name1", true)
         val device2 = PolarDeviceInfo("deviceId2", "address2", -80, "name2", true)
-        val polarDevices = UnicastProcessor.create<PolarDeviceInfo>()
+        val device3 = PolarDeviceInfo("deviceId3", "address3", -80, "name3", true)
+        val polarDevices = PublishProcessor.create<PolarDeviceInfo>()
         whenever(mockApi.searchForDevice()).thenReturn(polarDevices)
 
         val searchState = binder.flowWhenConnected(PolarBinder::searchState).stateIn(
@@ -221,5 +222,9 @@ class PolarServiceTest {
         runCurrent()
         assertEquals(SearchState.SearchStatus.AllDevices, searchState.value.status)
         assert(searchState.value.devicesFound.isEmpty())
+
+        polarDevices.onNext(device3)
+        runCurrent()
+        assertEquals(setOf(HrDeviceInfo.fromPolarInfo(device3)), searchState.value.devicesFound)
     }
 }

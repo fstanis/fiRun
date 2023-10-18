@@ -30,9 +30,10 @@ sealed class DeviceConnectionStatus {
     data class Connecting(override val deviceId: String) : DeviceConnectionStatus()
     data class Connected(val deviceInfo: DeviceInfo) : DeviceConnectionStatus() {
         override val deviceId: String get() = deviceInfo.info.deviceId
-        val supportsHr get() = deviceInfo.features.contains(
-            PolarBleApi.PolarBleSdkFeature.FEATURE_HR
-        )
+        val supportsHr
+            get() = deviceInfo.features.contains(
+                PolarBleApi.PolarBleSdkFeature.FEATURE_HR
+            )
     }
 
     data class DeviceInfo(
