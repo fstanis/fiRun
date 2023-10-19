@@ -35,6 +35,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
@@ -147,13 +148,26 @@ object ExerciseScreen : Screen {
         ) {
             val currentPaceFormatted = currentPace?.formatAsPace() ?: "…"
             val averagePaceFormatted = averagePace?.formatAsPace() ?: "…"
-            Text("❤ ${heartRate?.bpm ?: "…"} (${polarHr?.bpm ?: "…"})")
             Text(
-                "\uD83C\uDFC3 $currentPaceFormatted ($averagePaceFormatted)"
+                modifier = Modifier.testTag("heartRate"),
+                text = "❤ ${heartRate?.bpm ?: "…"} (${polarHr?.bpm ?: "…"})"
             )
-            Text("\uD83C\uDF82 ${calories ?: "…"}")
-            Text("\uD83D\uDCCF ${formatDistance(distance)}")
-            Text("⏲ ${duration.formatElapsedTime()}")
+            Text(
+                modifier = Modifier.testTag("pace"),
+                text = "\uD83C\uDFC3 $currentPaceFormatted ($averagePaceFormatted)"
+            )
+            Text(
+                modifier = Modifier.testTag("calories"),
+                text = "\uD83C\uDF82 ${calories ?: "…"}"
+            )
+            Text(
+                modifier = Modifier.testTag("distance"),
+                text = "\uD83D\uDCCF ${formatDistance(distance)}"
+            )
+            Text(
+                modifier = Modifier.testTag("duration"),
+                text = "⏲ ${duration.formatElapsedTime()}"
+            )
             Button(onClick = onPauseExerciseClick) {
                 Icon(imageVector = Icons.Outlined.Pause, contentDescription = "Pause exercise")
             }

@@ -24,7 +24,7 @@ import android.content.ComponentName
 import me.stanis.apps.fiRun.services.exercise.ExerciseService
 import me.stanis.apps.fiRun.services.polar.PolarService
 
-class ServiceTestUtil(instrumentation: Instrumentation) {
+class ServiceInfoHelper(instrumentation: Instrumentation) {
     private val context = instrumentation.targetContext
     private val activityManager = context.getSystemService(ActivityManager::class.java)
 

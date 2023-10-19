@@ -148,7 +148,7 @@ object HomeScreen : Screen {
                         colors = ButtonDefaults.secondaryButtonColors(),
                         onClick = onSettingsClick
                     ) {
-                        Icon(imageVector = Icons.Outlined.Settings, contentDescription = null)
+                        Icon(imageVector = Icons.Outlined.Settings, contentDescription = "Settings")
                     }
 
                     ToggleButton(

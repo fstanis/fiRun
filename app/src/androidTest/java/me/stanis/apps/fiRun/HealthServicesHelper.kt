@@ -21,7 +21,8 @@ import android.app.Instrumentation
 import android.content.Intent
 import android.provider.Settings
 import me.stanis.apps.fiRun.models.enums.ExerciseType
-class HealthServicesTestUtil(instrumentation: Instrumentation) {
+
+class HealthServicesHelper(instrumentation: Instrumentation) {
     private val context = instrumentation.targetContext
     private val uiAutomation = instrumentation.uiAutomation
 
@@ -29,6 +30,7 @@ class HealthServicesTestUtil(instrumentation: Instrumentation) {
         enableDeveloperSettings()
         sendBroadcast(USE_SYNTHETIC_PROVIDERS)
     }
+
     fun disableSynthetic() = sendBroadcast(USE_SENSOR_PROVIDERS)
     fun startExercise(exerciseType: ExerciseType) = sendBroadcast(
         when (exerciseType) {
