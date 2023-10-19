@@ -65,6 +65,7 @@ import me.stanis.apps.fiRun.modules.HealthModule
 import me.stanis.apps.fiRun.util.binder.BinderConnectionHelper.createBinderConnection
 import me.stanis.apps.fiRun.util.binder.ServiceBinderConnection
 import me.stanis.apps.fiRun.util.clock.Clock
+import me.stanis.apps.fiRun.util.errors.ServiceError
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -226,6 +227,21 @@ class ExerciseServiceTest {
         )
     }
 
+    @Test
+    fun `errors reflects ending in error`() = testScope.runTest {
+        val errors = binder.flowWhenConnected(ExerciseBinder::errors)
+            .shareIn(backgroundScope, SharingStarted.Eagerly, replay = 10)
+        runCurrent()
+        mockCallback.onExerciseUpdateReceived(
+            createEndedExerciseUpdate(ExerciseEndReason.AUTO_END_MISSING_LISTENER)
+        )
+        runCurrent()
+        assertEquals(
+            listOf(ServiceError.WithMessage("Exercise prematurely ended")),
+            errors.replayCache
+        )
+    }
+
     private fun createExerciseUpdate(dataPointList: List<DataPoint<*>> = emptyList()) =
         mock<ExerciseUpdate>().apply {
             whenever(exerciseStateInfo).thenReturn(
@@ -243,5 +259,24 @@ class ExerciseServiceTest {
             whenever(startTime).thenReturn(Instant.ofEpochSecond(321))
             whenever(getUpdateDurationFromBoot()).thenReturn(Duration.ofSeconds(1234))
             whenever(latestMetrics).thenReturn(DataPointContainer(dataPointList))
+        }
+
+    private fun createEndedExerciseUpdate(@ExerciseEndReason reason: Int) =
+        mock<ExerciseUpdate>().apply {
+            whenever(exerciseStateInfo).thenReturn(
+                ExerciseStateInfo(
+                    HealthExerciseState.ENDED,
+                    reason
+                )
+            )
+            whenever(activeDurationCheckpoint).thenReturn(
+                ExerciseUpdate.ActiveDurationCheckpoint(
+                    Instant.ofEpochSecond(123),
+                    Duration.ofSeconds(4321)
+                )
+            )
+            whenever(startTime).thenReturn(Instant.ofEpochSecond(321))
+            whenever(getUpdateDurationFromBoot()).thenReturn(Duration.ofSeconds(1234))
+            whenever(latestMetrics).thenReturn(DataPointContainer(emptyList()))
         }
 }

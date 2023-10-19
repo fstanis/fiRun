@@ -22,10 +22,12 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.health.services.client.ExerciseClient
+import androidx.health.services.client.data.ExerciseState
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.rule.GrantPermissionRule
 import dagger.hilt.android.testing.BindValue
@@ -33,6 +35,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.UninstallModules
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.conflate
@@ -111,6 +114,23 @@ class ExerciseScreenTest {
 
         exerciseClientDelegate.awaitExerciseDuration(10.seconds)
         collector.cancel()
+        hsTestUtil.stopExercise()
+    }
+
+    @Test
+    fun uiShowsPausedMetrics() = runTest(timeout = 30.seconds) {
+        hsTestUtil.startExercise(ExerciseType.IndoorRun)
+        composeTestRule.waitUntilAtLeastOneExists(hasText("Indoor run"))
+        composeTestRule.onNodeWithText("Indoor run").performClick()
+
+        exerciseClientDelegate.awaitExerciseDuration(5_600.milliseconds)
+        composeTestRule.onNodeWithContentDescription("Pause exercise").performClick()
+        exerciseClientDelegate.awaitExerciseState(ExerciseState.USER_PAUSED)
+        composeTestRule.awaitIdle()
+
+        composeTestRule.onNodeWithTag("duration")
+            .assertTextContains("0:06", substring = true)
+
         hsTestUtil.stopExercise()
     }
 }

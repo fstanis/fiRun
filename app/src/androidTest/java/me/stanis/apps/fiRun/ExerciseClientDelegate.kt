@@ -27,7 +27,6 @@ import androidx.health.services.client.data.ExerciseUpdate
 import com.google.common.util.concurrent.ListenableFuture
 import java.time.Duration
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.time.Duration as KtDuration
@@ -45,7 +44,8 @@ import kotlinx.coroutines.flow.update
 class ExerciseClientDelegate private constructor(private val exerciseClient: ExerciseClient) :
     ExerciseClient by exerciseClient {
     val updates = MutableSharedFlow<ExerciseUpdate>(
-        replay = 50,
+        replay = 1,
+        extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
 
@@ -61,15 +61,12 @@ class ExerciseClientDelegate private constructor(private val exerciseClient: Exe
 
     private var callbackDelegate: ExerciseUpdateCallback? = null
     private var originalCallback: ExerciseUpdateCallback? = null
-    private val callbackBlocked = AtomicBoolean(false)
 
     override fun setUpdateCallback(callback: ExerciseUpdateCallback) {
         originalCallback = callback
         callbackDelegate = object : ExerciseUpdateCallback by callback {
             override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
-                if (!callbackBlocked.get()) {
-                    callback.onExerciseUpdateReceived(update)
-                }
+                callback.onExerciseUpdateReceived(update)
                 updates.tryEmit(update)
                 dataPoints.update { prev ->
                     prev.toMutableList().also {

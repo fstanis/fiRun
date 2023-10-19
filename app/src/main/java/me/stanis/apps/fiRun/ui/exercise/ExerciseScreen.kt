@@ -187,8 +187,14 @@ object ExerciseScreen : Screen {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceEvenly
         ) {
-            Text("\uD83D\uDCCF ${String.format("%.2f", distance / 1000)}km")
-            Text("⏲ ${duration.formatElapsedTime()}")
+            Text(
+                modifier = Modifier.testTag("distance"),
+                text = "\uD83D\uDCCF ${String.format("%.2f", distance / 1000)}km"
+            )
+            Text(
+                modifier = Modifier.testTag("duration"),
+                text = "⏲ ${duration.formatElapsedTime()}"
+            )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
